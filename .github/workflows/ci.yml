@@ -20,4 +20,4 @@ jobs:
       - name: Build the Docker image
         run: docker build -t sound-bot .
       - name: Push to Dockerhub
-        run: docker push ackerman/sound-bot:latest
+        run: docker push ackerman123/sound-bot:latest
