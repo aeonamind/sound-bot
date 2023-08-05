@@ -18,6 +18,6 @@ jobs:
         run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
 
       - name: Build the Docker image
-        run: docker build -t sound-bot .
+        run: docker build -t ackerman123/sound-bot .
       - name: Push to Dockerhub
         run: docker push ackerman123/sound-bot:latest
