@@ -15,6 +15,7 @@ module.exports = {
   name: Events.MessageCreate as keyof ClientEvents,
   execute: async (message: Message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
+
     const args = message.content.slice(prefix.length).trim().split(' ');
     const command = args.shift().toLowerCase();
 
@@ -28,7 +29,7 @@ module.exports = {
 
       if (!voiceChannel) {
         message.channel.send(
-          'You need to be in a voice channel to use this command.',
+          'You need to be in a voice channel to use this command.'
         );
         return;
       }
@@ -64,7 +65,7 @@ module.exports = {
       } catch (err) {
         console.error(err);
         message.channel.send(
-          'Error occurred while trying to join the voice channel.',
+          'Error occurred while trying to join the voice channel.'
         );
       }
     }
