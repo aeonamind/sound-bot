@@ -8,9 +8,19 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v3
+      - name: Set up SSH key
+        run: |
+          touch sound-bot.pem
+          echo "$SSH_PRIVATE_KEY" > sound-bot.pem
+          chmod 400 sound-bot.pem
+          ssh -i "sound-bot.pem" ubuntu@ec2-13-215-159-171.ap-southeast-1.compute.amazonaws.com
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Pull Docker image
         run: sudo docker pull ackerman123/sound-bot:latest
       - name: Delete old Docker container
