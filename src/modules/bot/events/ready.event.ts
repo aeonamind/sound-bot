@@ -3,14 +3,10 @@ import { Logger } from '@nestjs/common';
 
 const logger = new Logger('Bot');
 
-const readyEvent = {
+module.exports = {
   name: Events.ClientReady as keyof ClientEvents,
   once: true,
   execute(client: Client) {
     logger.log(`Logged in as ${client.user?.tag}`);
   },
 };
-
-export type ReadyEvent = typeof readyEvent;
-
-module.exports = readyEvent;
