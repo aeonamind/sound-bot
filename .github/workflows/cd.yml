@@ -11,8 +11,6 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Print current directory
-        run: pwd
       - name: Pull Docker image
         run: sudo docker pull ackerman123/sound-bot:latest
       - name: Delete old Docker container

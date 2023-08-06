@@ -22,15 +22,18 @@
   "dependencies": {
     "@discordjs/opus": "^0.9.0",
     "@discordjs/voice": "^0.16.0",
+    "@distube/spotify": "^1.5.1",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "discord.js": "^14.11.0",
+    "distube": "^4.0.6",
     "ffmpeg-static": "^5.1.0",
     "libsodium-wrappers": "^0.7.11",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
+    "yt-search": "^2.10.4",
     "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
