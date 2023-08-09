@@ -12,6 +12,6 @@ module.exports = {
       interaction.reply({ content: 'Outdated command' });
     }
 
-    command.execute(interaction);
+    command.execute(interaction, client);
   },
 };
