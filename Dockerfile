@@ -20,9 +20,13 @@ COPY --from=builder /app/package.json /app/yarn.lock ./
 
 RUN yarn install --frozen-lockfile --only=production
 
-FROM node:18-alpine
+FROM node:18
 
 WORKDIR /app
+
+RUN apt update && apt install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/dist ./dist
 
