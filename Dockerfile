@@ -13,6 +13,7 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY ./src ./src
+COPY ./views ./views
 COPY ./tsconfig.build.json ./tsconfig.build.json
 COPY ./tsconfig.json ./tsconfig.json
 COPY ./nest-cli.json ./nest-cli.json
@@ -44,6 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/views ./views
 COPY --from=node_modules /app/node_modules ./node_modules
 
 EXPOSE 3000
