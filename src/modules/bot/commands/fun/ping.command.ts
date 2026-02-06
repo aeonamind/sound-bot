@@ -3,16 +3,23 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
+import { Command } from '../../interfaces';
 
-module.exports = {
+const command: Command = {
   data: new SlashCommandBuilder()
     .setName('ping')
-    .setDescription('pong')
+    .setDescription('Check the bot latency')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-  execute(interaction: ChatInputCommandInteraction) {
-    interaction.reply({
-      content: `${Date.now() - interaction.createdTimestamp}ms`,
+
+  async execute(interaction: ChatInputCommandInteraction) {
+    const latency = Date.now() - interaction.createdTimestamp;
+    const apiLatency = Math.round(interaction.client.ws.ping);
+
+    await interaction.reply({
+      content: `Pong! Latency: \`${latency}ms\` | API: \`${apiLatency}ms\``,
       ephemeral: true,
     });
   },
 };
+
+export = command;

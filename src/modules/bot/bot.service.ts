@@ -1,187 +1,222 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  Awaitable,
-  ChatInputCommandInteraction,
-  ClientEvents,
-  IntentsBitField,
-  Interaction,
+  GatewayIntentBits,
   Partials,
   REST,
   Routes,
-  SlashCommandBuilder,
+  RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from 'discord.js';
-import * as fs from 'fs';
+import { glob } from 'glob';
 import * as path from 'path';
 
-import { CustomClient as Client } from './clients/custom-client';
+import { CustomClient } from './clients/custom-client';
 import { BotConfig } from '@core/configs/bot.config';
 import { ConfigName } from '@core/constants/config-name.constant';
-import { Queue } from 'distube';
-
-type Event = {
-  name: string;
-  once: boolean;
-  execute: (...args: ClientEvents[keyof ClientEvents]) => Awaitable<void>;
-};
-
-export type Command = {
-  data: SlashCommandBuilder;
-  execute: (interaction: Interaction, client: Client) => void;
-};
+import { Command, BotEvent } from './interfaces';
 
 @Injectable()
 export class BotService implements OnModuleInit {
-  private readonly client: Client;
+  private readonly client: CustomClient;
   private readonly botConfig: BotConfig;
-  private readonly logger: Logger;
+  private readonly logger = new Logger(BotService.name);
+  private readonly rest: REST;
 
   constructor(private readonly configService: ConfigService) {
-    const intents = [
-      IntentsBitField.Flags.Guilds,
-      IntentsBitField.Flags.GuildMessages,
-      IntentsBitField.Flags.MessageContent,
-      IntentsBitField.Flags.GuildEmojisAndStickers,
-      IntentsBitField.Flags.GuildIntegrations,
-      IntentsBitField.Flags.GuildWebhooks,
-      IntentsBitField.Flags.GuildInvites,
-      IntentsBitField.Flags.GuildVoiceStates,
-      IntentsBitField.Flags.GuildPresences,
-      IntentsBitField.Flags.GuildMessages,
-      IntentsBitField.Flags.GuildMessageReactions,
-      IntentsBitField.Flags.GuildMessageTyping,
-      IntentsBitField.Flags.DirectMessages,
-      IntentsBitField.Flags.DirectMessageReactions,
-      IntentsBitField.Flags.DirectMessageTyping,
-      IntentsBitField.Flags.MessageContent,
-      IntentsBitField.Flags.GuildScheduledEvents,
-      IntentsBitField.Flags.AutoModerationConfiguration,
-      IntentsBitField.Flags.AutoModerationExecution,
-    ];
-    const partials = [
-      Partials.Channel,
-      Partials.GuildMember,
-      Partials.Message,
-      Partials.User,
-      Partials.ThreadMember,
-      Partials.Reaction,
-      Partials.GuildScheduledEvent,
-    ];
-
-    this.client = new Client({ intents, partials });
     this.botConfig = this.configService.get<BotConfig>(ConfigName.Bot);
-    this.logger = new Logger('Bot');
+    this.rest = new REST({ version: '10' }).setToken(this.botConfig.token);
+
+    this.client = new CustomClient({
+      intents: this.getIntents(),
+      partials: this.getPartials(),
+    });
   }
-  async onModuleInit() {
-    await this.registerEvents();
-    await this.registerCommands();
-    await this.registerDistube();
+
+  async onModuleInit(): Promise<void> {
+    await this.client.initPlayer();
+    this.registerPlayerEvents();
+    await this.loadEvents();
+    await this.loadCommands();
     await this.start();
   }
 
-  async start() {
-    await this.client.login(this.botConfig.token);
+  /**
+   * Start the bot and connect to Discord
+   */
+  private async start(): Promise<void> {
+    try {
+      await this.client.login(this.botConfig.token);
+    } catch (error) {
+      this.logger.error('Failed to start bot:', error);
+      throw error;
+    }
   }
 
-  private async registerEvents() {
-    const eventFiles = fs
-      .readdirSync(path.resolve(__dirname, 'events'))
-      .filter((file) => file.endsWith('event.js'));
+  /**
+   * Get the required gateway intents
+   */
+  private getIntents(): GatewayIntentBits[] {
+    return [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.GuildMessageReactions,
+      GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.MessageContent,
+    ];
+  }
+
+  /**
+   * Get the required partials
+   */
+  private getPartials(): Partials[] {
+    return [
+      Partials.Channel,
+      Partials.Message,
+      Partials.Reaction,
+    ];
+  }
+
+  /**
+   * Load all event handlers using glob pattern matching
+   */
+  private async loadEvents(): Promise<void> {
+    const eventFiles = await glob('**/*.event.js', {
+      cwd: path.join(__dirname, 'events'),
+      absolute: true,
+    });
 
     for (const file of eventFiles) {
-      const event: Event = await import(
-        path.resolve(__dirname, 'events', file)
-      );
-
-      if (event.once) {
-        this.client.once(event.name, event.execute);
-      } else {
-        this.client.on(event.name, event.execute);
-      }
-    }
-  }
-
-  private async registerCommands() {
-    const commandsArray = [];
-    const commandFolders = fs.readdirSync(path.resolve(__dirname, 'commands'));
-    for (const folder of commandFolders) {
-      const commandFiles = fs
-        .readdirSync(path.resolve(__dirname, 'commands', folder))
-        .filter((file) => file.endsWith('command.js'));
-
-      for (const file of commandFiles) {
-        const command: Command = await import(
-          path.resolve(__dirname, 'commands', folder, file)
-        );
-
-        this.client.commands.set(command.data.name, command);
-        commandsArray.push(command.data.toJSON());
-      }
-    }
-
-    const rest = new REST().setToken(this.botConfig.token);
-
-    (async () => {
       try {
-        const data = (await rest.put(
-          Routes.applicationCommands(this.botConfig.clientId),
-          {
-            body: commandsArray,
-          }
-        )) as Array<object>;
+        const eventModule = await import(file);
+        const event: BotEvent = eventModule.default ?? eventModule;
 
-        this.logger.log(
-          `Successfully reloaded ${data.length} application (/) commands.`
-        );
+        if (!event.name || !event.execute) {
+          this.logger.warn(`Invalid event file: ${file}`);
+          continue;
+        }
+
+        if (event.once) {
+          this.client.once(event.name, (...args) => event.execute(...args));
+        } else {
+          this.client.on(event.name, (...args) => event.execute(...args));
+        }
+
+        this.logger.debug(`Loaded event: ${event.name}`);
       } catch (error) {
-        this.logger.error(error);
+        this.logger.error(`Failed to load event ${file}:`, error);
       }
-    })();
+    }
+
+    this.logger.log(`Loaded ${eventFiles.length} events`);
   }
 
-  private async registerDistube() {
-    const status = (queue: Queue) =>
-      `Volume: \`${queue.volume}%\` | Filter: \`${
-        queue.filters.names.join(', ') || 'Off'
-      }\` | Loop: \`${
-        queue.repeatMode
-          ? queue.repeatMode === 2
-            ? 'All Queue'
-            : 'This Song'
-          : 'Off'
-      }\` | Autoplay: \`${queue.autoplay ? 'On' : 'Off'}\``;
-    this.client.distube
-      .on('playSong', (queue, song) =>
-        queue.textChannel.send(
-          `Playing \`${song.name}\` - \`${
-            song.formattedDuration
-          }\`\nRequested by: ${song.user}\n${status(queue)}`
-        )
-      )
-      .on('addSong', (queue, song) =>
-        queue.textChannel.send(
-          `Added ${song.name} - \`${song.formattedDuration}\` to the queue by ${song.user}`
-        )
-      )
-      .on('addList', (queue, playlist) =>
-        queue.textChannel.send(
-          `Added \`${playlist.name}\` playlist (${
-            playlist.songs.length
-          } songs) to queue\n${status(queue)}`
-        )
-      )
-      .on('error', (channel, e) => {
-        if (channel)
-          channel.send(`An error encountered: ${e.toString().slice(0, 1974)}`);
-        else console.error(e);
-      })
-      .on('empty', (channel) =>
-        // @ts-ignore
-        channel.send('Voice channel is empty! Leaving the channel...')
-      )
-      .on('searchNoResult', (message, query) =>
-        message.channel.send(`No result found for \`${query}\`!`)
-      )
-      .on('finish', (queue) => queue.textChannel.send('Finished!'));
+  /**
+   * Load all commands using glob pattern matching and register with Discord
+   */
+  private async loadCommands(): Promise<void> {
+    const commandFiles = await glob('**/*.command.js', {
+      cwd: path.join(__dirname, 'commands'),
+      absolute: true,
+    });
+
+    const commandsJson: RESTPostAPIChatInputApplicationCommandsJSONBody[] = [];
+
+    for (const file of commandFiles) {
+      try {
+        const commandModule = await import(file);
+        const command: Command = commandModule.default ?? commandModule;
+
+        if (!command.data || !command.execute) {
+          this.logger.warn(`Invalid command file: ${file}`);
+          continue;
+        }
+
+        const commandName = command.data.name;
+        this.client.commands.set(commandName, command);
+        commandsJson.push(command.data.toJSON() as RESTPostAPIChatInputApplicationCommandsJSONBody);
+
+        this.logger.debug(`Loaded command: ${commandName}`);
+      } catch (error) {
+        this.logger.error(`Failed to load command ${file}:`, error);
+      }
+    }
+
+    // Register commands with Discord API
+    await this.registerCommands(commandsJson);
+    this.logger.log(`Loaded ${this.client.commands.size} commands`);
+  }
+
+  /**
+   * Register slash commands with Discord API
+   */
+  private async registerCommands(
+    commands: RESTPostAPIChatInputApplicationCommandsJSONBody[],
+  ): Promise<void> {
+    try {
+      const data = await this.rest.put(
+        Routes.applicationCommands(this.botConfig.clientId),
+        { body: commands },
+      ) as unknown[];
+
+      this.logger.log(`Successfully registered ${data.length} application commands`);
+    } catch (error) {
+      this.logger.error('Failed to register commands:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register discord-player event handlers
+   */
+  private registerPlayerEvents(): void {
+    const { player } = this.client;
+
+    player.events.on('playerStart', (queue, track) => {
+      queue.metadata.channel?.send(
+        `🎶 | Now playing: **${track.title}** by **${track.author}**\n` +
+        `Duration: \`${track.duration}\` | Requested by: ${track.requestedBy}`,
+      );
+    });
+
+    player.events.on('audioTrackAdd', (queue, track) => {
+      queue.metadata.channel?.send(
+        `🎵 | Added to queue: **${track.title}** - \`${track.duration}\``,
+      );
+    });
+
+    player.events.on('audioTracksAdd', (queue, tracks) => {
+      queue.metadata.channel?.send(
+        `🎶 | Added **${tracks.length}** tracks to the queue!`,
+      );
+    });
+
+    player.events.on('playerSkip', (queue, track) => {
+      queue.metadata.channel?.send(
+        `⏭️ | Skipped: **${track.title}**`,
+      );
+    });
+
+    player.events.on('disconnect', (queue) => {
+      queue.metadata.channel?.send('❌ | Disconnected from voice channel.');
+    });
+
+    player.events.on('emptyChannel', (queue) => {
+      queue.metadata.channel?.send('❌ | Nobody is in the voice channel, leaving...');
+    });
+
+    player.events.on('emptyQueue', (queue) => {
+      queue.metadata.channel?.send('✅ | Queue finished!');
+    });
+
+    player.events.on('error', (queue, error) => {
+      this.logger.error('Player error:', error);
+      queue.metadata.channel?.send(`❌ | Error: ${error.message}`);
+    });
+
+    player.events.on('playerError', (queue, error) => {
+      this.logger.error('Player error:', error);
+      queue.metadata.channel?.send(`❌ | Player error: ${error.message}`);
+    });
   }
 }
