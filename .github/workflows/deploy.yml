@@ -1,15 +1,15 @@
-name: CD Pipeline
+name: Deploy
 
 on:
   workflow_run:
-    workflows: ['CI Pipeline']
+    workflows: ['Build and Test']
     types:
       - completed
 
 jobs:
-  build:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: self-hosted
-
     steps:
       - name: Pull Docker image
         run: sudo docker pull ackerman123/sound-bot:latest
