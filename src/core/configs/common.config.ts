@@ -1,7 +1,7 @@
-import { ConfigName } from '../constants/config-name.constant';
+import { ConfigName } from "../constants/config-name.constant";
 
 export const commonConfig = () => ({
-  [ConfigName.Common]: {},
+	[ConfigName.Common]: {},
 });
 
 export type CommonConfig = ReturnType<typeof commonConfig>[ConfigName.Common];

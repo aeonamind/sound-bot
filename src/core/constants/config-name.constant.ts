@@ -1,4 +1,4 @@
 export enum ConfigName {
-  Common = 'common',
-  Bot = 'bot',
+	Common = "common",
+	Bot = "bot",
 }
