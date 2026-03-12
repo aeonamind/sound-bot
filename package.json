@@ -82,7 +82,10 @@
 			"**/*.(t|j)s"
 		],
 		"coverageDirectory": "../coverage",
-		"testEnvironment": "node"
+		"testEnvironment": "node",
+		"moduleNameMapper": {
+			"^@core/(.*)$": "<rootDir>/core/$1"
+		}
 	},
 	"lint-staged": {
 		"*.{js,ts,json}": "biome check --write --no-errors-on-unmatched"
