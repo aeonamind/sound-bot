@@ -88,6 +88,7 @@
 		}
 	},
 	"lint-staged": {
-		"*.{js,ts,json}": "biome check --write --no-errors-on-unmatched"
+		"*.{js,ts,json}": "biome check --write --no-errors-on-unmatched",
+		"*.ts": "tsc --noEmit"
 	}
 }
