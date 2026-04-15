@@ -16,6 +16,7 @@
 		"start:debug": "nest start --debug --watch",
 		"start:prod": "node dist/main",
 		"lint": "biome check --write .",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "jest --passWithNoTests",
 		"test:watch": "jest --watch",
 		"test:cov": "jest --coverage",
@@ -86,9 +87,5 @@
 		"moduleNameMapper": {
 			"^@core/(.*)$": "<rootDir>/core/$1"
 		}
-	},
-	"lint-staged": {
-		"*.{js,ts,json}": "biome check --write --no-errors-on-unmatched",
-		"*.ts": "tsc --noEmit"
 	}
 }

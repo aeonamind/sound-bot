@@ -2,7 +2,7 @@ import * as path from "node:path";
 import type { BotConfig } from "@core/configs/bot.config";
 import { ConfigName } from "@core/constants/config-name.constant";
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 import {
 	GatewayIntentBits,
 	Partials,
