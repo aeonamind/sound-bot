@@ -1,7 +1,7 @@
 import type { BotConfig } from "@core/configs/bot.config";
 import { ConfigName } from "@core/constants/config-name.constant";
 import { Controller, Get, Render } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 
 @Controller()
 export class BotController {
