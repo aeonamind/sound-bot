@@ -1,0 +1,121 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: ['main']
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Lint, Test & Build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Lint and Format
+        run: yarn lint
+      - name: Test
+        run: yarn test
+      - name: Build
+        run: yarn build
+
+  build-and-push:
+    name: Build & Push to DockerHub
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t aeonamind/sound-bot:${{ github.sha }} \
+            -t aeonamind/sound-bot:latest \
+            .
+
+      - name: Push to DockerHub
+        run: |
+          docker push aeonamind/sound-bot:${{ github.sha }}
+          docker push aeonamind/sound-bot:latest
+
+  update-gitops:
+    name: Update GitOps Repository
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: aeonamind/gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          ref: main
+
+      - name: Update image tag in values.yaml
+        run: |
+          set -e
+          NEW_TAG="${{ needs.build-and-push.outputs.tag }}"
+          CHART_PATH="infra/sound-bot/values.yaml"
+
+          CURRENT_TAG=$(yq eval '.image.tag' "$CHART_PATH")
+          echo "Current tag: $CURRENT_TAG"
+          echo "New tag:     $NEW_TAG"
+
+          if [ "$CURRENT_TAG" = "$NEW_TAG" ]; then
+            echo "Tag already up to date, skipping."
+            exit 0
+          fi
+
+          yq eval ".image.tag = \"$NEW_TAG\"" -i "$CHART_PATH"
+
+      - name: Commit and push (with retry)
+        run: |
+          set -e
+          NEW_TAG="${{ needs.build-and-push.outputs.tag }}"
+          MAX_RETRIES=5
+          RETRY_DELAY=2
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $attempt/$MAX_RETRIES"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            yq eval ".image.tag = \"$NEW_TAG\"" -i "infra/sound-bot/values.yaml"
+
+            if git diff --quiet; then
+              echo "No changes to commit."
+              exit 0
+            fi
+
+            git add infra/sound-bot/values.yaml
+            git commit -m "chore(sound-bot): deploy $NEW_TAG"
+
+            if git push origin main; then
+              echo "Successfully pushed: $(git rev-parse HEAD)"
+              exit 0
+            fi
+
+            echo "Push failed, retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+            RETRY_DELAY=$((RETRY_DELAY * 2))
+          done
+
+          echo "Max retries exceeded."
+          exit 1
