@@ -1,12 +1,17 @@
-import { Client, ClientEvents, Events } from 'discord.js';
-import { Logger } from '@nestjs/common';
+import { Logger } from "@nestjs/common";
+import { type Client, Events } from "discord.js";
+import type { BotEvent } from "../interfaces";
 
-const logger = new Logger('Bot');
+const logger = new Logger("ReadyEvent");
 
-module.exports = {
-  name: Events.ClientReady as keyof ClientEvents,
-  once: true,
-  execute(client: Client) {
-    logger.log(`Logged in as ${client.user?.tag}`);
-  },
+const event: BotEvent<typeof Events.ClientReady> = {
+	name: Events.ClientReady,
+	once: true,
+
+	execute(client: Client<true>) {
+		logger.log(`Bot is ready! Logged in as ${client.user.tag}`);
+		logger.log(`Serving ${client.guilds.cache.size} guild(s)`);
+	},
 };
+
+export = event;

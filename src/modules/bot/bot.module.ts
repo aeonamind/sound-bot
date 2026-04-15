@@ -1,7 +1,9 @@
-import { Module } from '@nestjs/common';
-import { BotService } from './bot.service';
+import { Module } from "@nestjs/common";
+import { BotController } from "./bot.controller";
+import { BotService } from "./bot.service";
 
 @Module({
-  providers: [BotService],
+	controllers: [BotController],
+	providers: [BotService],
 })
 export class BotModule {}
