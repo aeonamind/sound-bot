@@ -6,6 +6,7 @@ export const botConfig = () => ({
 		clientId: process.env.CLIENT_ID,
 		spotifyClientId: process.env.SPOTIFY_CLIENT_ID,
 		spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+		enabled: process.env.BOT_ENABLED === "true",
 	},
 });
 

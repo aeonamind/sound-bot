@@ -86,7 +86,7 @@ const command: Command = {
 
 					const result = await player.search(query, {
 						requestedBy: interaction.user,
-						searchEngine: QueryType.AUTO,
+						searchEngine: QueryType.SPOTIFY_SEARCH,
 					});
 
 					if (!result || !result.tracks.length) {
