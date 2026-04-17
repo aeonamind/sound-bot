@@ -32,6 +32,13 @@ export class BotService implements OnModuleInit {
 	}
 
 	async onModuleInit(): Promise<void> {
+		if (!this.botConfig.enabled) {
+			this.logger.warn(
+				"Bot is disabled via configuration. Skipping initialization.",
+			);
+			return;
+		}
+
 		await this.client.initPlayer({
 			spotifyClientId: this.botConfig.spotifyClientId,
 			spotifyClientSecret: this.botConfig.spotifyClientSecret,
