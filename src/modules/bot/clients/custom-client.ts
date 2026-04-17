@@ -27,8 +27,14 @@ export class CustomClient extends Client {
 	/**
 	 * Initialize the player with extractors
 	 */
-	async initPlayer(): Promise<void> {
+	async initPlayer(options?: {
+		spotifyClientId?: string;
+		spotifyClientSecret?: string;
+	}): Promise<void> {
 		await this.player.extractors.register(SoundcloudExtractor, {});
-		await this.player.extractors.register(SpotifyExtractor, {});
+		await this.player.extractors.register(SpotifyExtractor, {
+			clientId: options?.spotifyClientId,
+			clientSecret: options?.spotifyClientSecret,
+		});
 	}
 }

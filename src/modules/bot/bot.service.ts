@@ -32,7 +32,10 @@ export class BotService implements OnModuleInit {
 	}
 
 	async onModuleInit(): Promise<void> {
-		await this.client.initPlayer();
+		await this.client.initPlayer({
+			spotifyClientId: this.botConfig.spotifyClientId,
+			spotifyClientSecret: this.botConfig.spotifyClientSecret,
+		});
 		this.registerPlayerEvents();
 		await this.loadEvents();
 		await this.loadCommands();
