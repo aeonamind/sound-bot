@@ -14,7 +14,7 @@ const command: Command = {
 		.addSubcommand((subcommand) =>
 			subcommand
 				.setName("play")
-				.setDescription("Play a song from YouTube")
+				.setDescription("Play a song from YouTube or Spotify")
 				.addStringOption((option) =>
 					option
 						.setName("query")
