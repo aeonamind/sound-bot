@@ -1,9 +1,24 @@
-import { DefaultExtractors } from "@discord-player/extractor";
+import {
+	AppleMusicExtractor,
+	AttachmentExtractor,
+	ReverbnationExtractor,
+	SoundCloudExtractor,
+	VimeoExtractor,
+} from "@discord-player/extractor";
 import { Client, type ClientOptions, Collection } from "discord.js";
 import { Player } from "discord-player";
 import { SpotifyExtractor } from "discord-player-spotify";
+import ffmpegPath from "ffmpeg-static";
 import { PlayDLExtractor } from "./extractors/play-dl";
 import type { Command } from "./types";
+
+const secondaryExtractors = [
+	SoundCloudExtractor,
+	AttachmentExtractor,
+	VimeoExtractor,
+	ReverbnationExtractor,
+	AppleMusicExtractor,
+];
 
 export class CustomClient extends Client {
 	public readonly commands = new Collection<string, Command>();
@@ -15,7 +30,10 @@ export class CustomClient extends Client {
 
 	constructor(options: ClientOptions) {
 		super(options);
-		this.player = new Player(this);
+		this.player = new Player(this, {
+			ffmpegPath: ffmpegPath ?? undefined,
+			skipFFmpeg: false,
+		});
 	}
 
 	async initPlayer(options?: {
@@ -29,9 +47,11 @@ export class CustomClient extends Client {
 			clientSecret: options?.spotifyClientSecret,
 		});
 
-		await this.player.extractors.loadMulti(DefaultExtractors, {} as any);
+		await this.player.extractors.loadMulti(secondaryExtractors, {} as any);
 
 		console.log(`✅ Loaded ${this.player.extractors.size} extractors`);
-		console.log(`🎬 YouTube: play-dl | 🎵 Spotify: metadata + bridge`);
+		console.log(
+			`🎬 YouTube: play-dl search + yt-dlp stream | 🎵 Spotify: bridge`,
+		);
 	}
 }
