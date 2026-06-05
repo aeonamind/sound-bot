@@ -19,8 +19,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json bun.lock ./
