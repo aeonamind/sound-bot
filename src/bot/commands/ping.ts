@@ -3,7 +3,7 @@ import {
 	PermissionFlagsBits,
 	SlashCommandBuilder,
 } from "discord.js";
-import type { Command } from "../../interfaces";
+import type { Command } from "../types";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -22,4 +22,4 @@ const command: Command = {
 	},
 };
 
-export = command;
+export default command;

@@ -1,10 +1,11 @@
 import type {
 	ChatInputCommandInteraction,
+	ClientEvents,
 	SlashCommandBuilder,
 	SlashCommandOptionsOnlyBuilder,
 	SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
-import type { CustomClient } from "../clients/custom-client";
+import type { CustomClient } from "./client";
 
 export type SlashCommandData =
 	| SlashCommandBuilder
@@ -13,13 +14,16 @@ export type SlashCommandData =
 	| Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
 
 export interface Command {
-	/** The slash command data */
 	data: SlashCommandData;
-	/** Optional cooldown in seconds */
 	cooldown?: number;
-	/** Execute the command */
 	execute: (
 		interaction: ChatInputCommandInteraction,
 		client: CustomClient,
 	) => Promise<unknown> | unknown;
+}
+
+export interface BotEvent<K extends keyof ClientEvents = keyof ClientEvents> {
+	name: K;
+	once?: boolean;
+	execute: (...args: ClientEvents[K]) => Promise<unknown> | unknown;
 }

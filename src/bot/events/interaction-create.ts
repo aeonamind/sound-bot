@@ -1,9 +1,9 @@
-import { Logger } from "@nestjs/common";
 import { Collection, Events, type Interaction } from "discord.js";
-import type { CustomClient } from "../clients/custom-client";
-import type { BotEvent } from "../interfaces";
+import { createLogger } from "../../logger";
+import type { CustomClient } from "../client";
+import type { BotEvent } from "../types";
 
-const logger = new Logger("InteractionEvent");
+const logger = createLogger("InteractionEvent");
 
 const event: BotEvent<typeof Events.InteractionCreate> = {
 	name: Events.InteractionCreate,
@@ -51,7 +51,10 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 		}
 
 		try {
-			await command.execute(interaction, client);
+			// discord-player requires guild context to be provided for hooks like useMainPlayer() and useQueue() to work
+			await client.player.context.provide({ guild: interaction.guild! }, () =>
+				command.execute(interaction, client),
+			);
 		} catch (error) {
 			logger.error(`Error executing ${interaction.commandName}:`, error);
 
@@ -69,4 +72,4 @@ const event: BotEvent<typeof Events.InteractionCreate> = {
 	},
 };
 
-export = event;
+export default event;
