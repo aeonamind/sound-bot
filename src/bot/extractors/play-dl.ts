@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 import {
 	BaseExtractor,
 	type ExtractorInfo,
@@ -10,6 +11,12 @@ import {
 	Util,
 } from "discord-player";
 import play from "play-dl";
+import youtubedl from "youtube-dl-exec";
+
+type BridgeSource = {
+	identifier: string;
+	createBridgeQuery?: (track: Track) => string;
+};
 
 export class PlayDLExtractor extends BaseExtractor {
 	static identifier = "com.soundbot.playdl-extractor" as const;
@@ -140,9 +147,80 @@ export class PlayDLExtractor extends BaseExtractor {
 		return track;
 	}
 
+	private createYtDlpStream(youtubeUrl: string): Readable {
+		const subprocess = youtubedl.exec(youtubeUrl, {
+			format: "ba/b",
+			output: "-",
+			noPart: true,
+			quiet: true,
+			noWarnings: true,
+		});
+
+		const stream = subprocess.stdout as Readable;
+
+		stream.on("error", () => {
+			if (!subprocess.killed) subprocess.kill("SIGKILL");
+		});
+
+		stream.on("close", () => {
+			if (!subprocess.killed) subprocess.kill("SIGKILL");
+		});
+
+		return stream;
+	}
+
 	async stream(track: Track): Promise<ExtractorStreamable> {
-		const ytStream = await play.stream(track.url, { quality: 2 });
-		return ytStream.stream;
+		const url = track.bridgedTrack?.url ?? track.url;
+		if (!url || play.yt_validate(url) !== "video") {
+			throw new Error(`Cannot stream non-YouTube URL: ${url ?? "undefined"}`);
+		}
+
+		return this.createYtDlpStream(url);
+	}
+
+	async bridge(
+		track: Track,
+		sourceExtractor: BridgeSource | null,
+	): Promise<ExtractorStreamable | null> {
+		if (sourceExtractor?.identifier === PlayDLExtractor.identifier) {
+			return this.stream(track);
+		}
+
+		const query =
+			sourceExtractor?.createBridgeQuery?.(track) ??
+			`${track.author} - ${track.title}`;
+
+		try {
+			const results = await play.search(query, {
+				source: { youtube: "video" },
+				limit: 1,
+			});
+
+			const video = results[0];
+			if (!video?.url || play.yt_validate(video.url) !== "video") return null;
+
+			const bridgedTrack = this.buildTrack(
+				{
+					title: video.title ?? "Unknown",
+					description: video.description ?? "",
+					author: video.channel?.name ?? "Unknown",
+					url: video.url,
+					thumbnail: video.thumbnails[0]?.url ?? "",
+					durationRaw: video.durationRaw ?? "0:00",
+					views: video.views ?? 0,
+					live: video.live,
+				},
+				{ requestedBy: track.requestedBy },
+				QueryType.YOUTUBE_SEARCH,
+			);
+
+			track.bridgedTrack = bridgedTrack;
+			track.bridgedExtractor = this;
+
+			return this.createYtDlpStream(video.url);
+		} catch {
+			return null;
+		}
 	}
 
 	emptyResponse(): ExtractorInfo {
