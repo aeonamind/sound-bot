@@ -1,8 +1,4 @@
-import * as path from "node:path";
-import type { BotConfig } from "@core/configs/bot.config";
-import { ConfigName } from "@core/constants/config-name.constant";
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { join } from "node:path";
 import {
 	GatewayIntentBits,
 	Partials,
@@ -11,19 +7,17 @@ import {
 	Routes,
 } from "discord.js";
 import { glob } from "glob";
-import { CustomClient } from "./clients/custom-client";
-import type { BotEvent, Command } from "./interfaces";
+import type { BotConfig } from "../config";
+import { createLogger } from "../logger";
+import { CustomClient } from "./client";
 
-@Injectable()
-export class BotService implements OnModuleInit {
+export class BotService {
 	private readonly client: CustomClient;
-	private readonly botConfig: BotConfig;
-	private readonly logger = new Logger(BotService.name);
+	private readonly logger = createLogger(BotService.name);
 	private readonly rest: REST;
 
-	constructor(private readonly configService: ConfigService) {
-		this.botConfig = this.configService.get<BotConfig>(ConfigName.Bot);
-		this.rest = new REST({ version: "10" }).setToken(this.botConfig.token);
+	constructor(private readonly config: BotConfig) {
+		this.rest = new REST({ version: "10" }).setToken(this.config.token);
 
 		this.client = new CustomClient({
 			intents: this.getIntents(),
@@ -31,8 +25,8 @@ export class BotService implements OnModuleInit {
 		});
 	}
 
-	async onModuleInit(): Promise<void> {
-		if (!this.botConfig.enabled) {
+	async start(): Promise<void> {
+		if (!this.config.enabled) {
 			this.logger.warn(
 				"Bot is disabled via configuration. Skipping initialization.",
 			);
@@ -40,30 +34,24 @@ export class BotService implements OnModuleInit {
 		}
 
 		await this.client.initPlayer({
-			spotifyClientId: this.botConfig.spotifyClientId,
-			spotifyClientSecret: this.botConfig.spotifyClientSecret,
+			spotifyClientId: this.config.spotifyClientId,
+			spotifyClientSecret: this.config.spotifyClientSecret,
 		});
 		this.registerPlayerEvents();
 		await this.loadEvents();
 		await this.loadCommands();
-		await this.start();
+		await this.login();
 	}
 
-	/**
-	 * Start the bot and connect to Discord
-	 */
-	private async start(): Promise<void> {
+	private async login(): Promise<void> {
 		try {
-			await this.client.login(this.botConfig.token);
+			await this.client.login(this.config.token);
 		} catch (error) {
 			this.logger.error("Failed to start bot:", error);
 			throw error;
 		}
 	}
 
-	/**
-	 * Get the required gateway intents
-	 */
 	private getIntents(): GatewayIntentBits[] {
 		return [
 			GatewayIntentBits.Guilds,
@@ -75,26 +63,19 @@ export class BotService implements OnModuleInit {
 		];
 	}
 
-	/**
-	 * Get the required partials
-	 */
 	private getPartials(): Partials[] {
 		return [Partials.Channel, Partials.Message, Partials.Reaction];
 	}
 
-	/**
-	 * Load all event handlers using glob pattern matching
-	 */
 	private async loadEvents(): Promise<void> {
-		const eventFiles = await glob("**/*.event.js", {
-			cwd: path.join(__dirname, "events"),
+		const eventFiles = await glob("**/*.ts", {
+			cwd: join(import.meta.dir, "events"),
 			absolute: true,
 		});
 
 		for (const file of eventFiles) {
 			try {
-				const eventModule = await import(file);
-				const event: BotEvent = eventModule.default ?? eventModule;
+				const { default: event } = await import(file);
 
 				if (!event.name || !event.execute) {
 					this.logger.warn(`Invalid event file: ${file}`);
@@ -116,12 +97,9 @@ export class BotService implements OnModuleInit {
 		this.logger.log(`Loaded ${eventFiles.length} events`);
 	}
 
-	/**
-	 * Load all commands using glob pattern matching and register with Discord
-	 */
 	private async loadCommands(): Promise<void> {
-		const commandFiles = await glob("**/*.command.js", {
-			cwd: path.join(__dirname, "commands"),
+		const commandFiles = await glob("**/*.ts", {
+			cwd: join(import.meta.dir, "commands"),
 			absolute: true,
 		});
 
@@ -129,8 +107,7 @@ export class BotService implements OnModuleInit {
 
 		for (const file of commandFiles) {
 			try {
-				const commandModule = await import(file);
-				const command: Command = commandModule.default ?? commandModule;
+				const { default: command } = await import(file);
 
 				if (!command.data || !command.execute) {
 					this.logger.warn(`Invalid command file: ${file}`);
@@ -149,20 +126,16 @@ export class BotService implements OnModuleInit {
 			}
 		}
 
-		// Register commands with Discord API
 		await this.registerCommands(commandsJson);
 		this.logger.log(`Loaded ${this.client.commands.size} commands`);
 	}
 
-	/**
-	 * Register slash commands with Discord API
-	 */
 	private async registerCommands(
 		commands: RESTPostAPIChatInputApplicationCommandsJSONBody[],
 	): Promise<void> {
 		try {
 			const data = (await this.rest.put(
-				Routes.applicationCommands(this.botConfig.clientId),
+				Routes.applicationCommands(this.config.clientId),
 				{ body: commands },
 			)) as unknown[];
 
@@ -175,13 +148,19 @@ export class BotService implements OnModuleInit {
 		}
 	}
 
-	/**
-	 * Register discord-player event handlers
-	 */
 	private registerPlayerEvents(): void {
 		const { player } = this.client;
 
+		player.on("debug", (message) => {
+			this.logger.debug(`[player] ${message}`);
+		});
+
+		player.events.on("debug", (queue, message) => {
+			this.logger.debug(`[queue:${queue.guild.name}] ${message}`);
+		});
+
 		player.events.on("playerStart", (queue, track) => {
+			this.logger.log(`Now playing: ${track.title}`);
 			queue.metadata.channel?.send(
 				`🎶 | Now playing: **${track.title}** by **${track.author}**\n` +
 					`Duration: \`${track.duration}\` | Requested by: ${track.requestedBy}`,
@@ -219,13 +198,63 @@ export class BotService implements OnModuleInit {
 		});
 
 		player.events.on("error", (queue, error) => {
+			if (
+				error.name === "AbortError" ||
+				error.message.includes("The operation was aborted") ||
+				(error as NodeJS.ErrnoException).code === "ABORT_ERR"
+			) {
+				this.logger.debug(
+					`[player] stream aborted (expected): ${error.message}`,
+				);
+				return;
+			}
 			this.logger.error("Player error:", error);
 			queue.metadata.channel?.send(`❌ | Error: ${error.message}`);
 		});
 
 		player.events.on("playerError", (queue, error) => {
+			if (
+				error.name === "AbortError" ||
+				error.message.includes("The operation was aborted") ||
+				(error as NodeJS.ErrnoException).code === "ABORT_ERR"
+			) {
+				this.logger.debug(
+					`[player] stream aborted (expected): ${error.message}`,
+				);
+				return;
+			}
+
+			if (
+				error.message.includes("Could not extract stream for this track") ||
+				error.name === "NoResultError" ||
+				error.message.includes("No suitable source found")
+			) {
+				const trackTitle =
+					queue.currentTrack?.title ||
+					queue.tracks?.at(0)?.title ||
+					"this track";
+				this.logger.warn(
+					`Bridge failed for "${trackTitle}". No audio source found from YouTube/SoundCloud.`,
+				);
+				queue.metadata.channel?.send(
+					`⏭️ | Could not find audio source for **${trackTitle}**. ` +
+						`Try a different song or YouTube link directly.`,
+				);
+				return;
+			}
+
 			this.logger.error("Player error:", error);
 			queue.metadata.channel?.send(`❌ | Player error: ${error.message}`);
 		});
+
+		player.events.on(
+			"willPlayTrack" as any,
+			(_queue: any, track: any, _config: any, done: () => void) => {
+				this.logger.debug(
+					`[willPlayTrack] ${track?.title} | extractor: ${track?.extractor?.identifier}`,
+				);
+				done();
+			},
+		);
 	}
 }

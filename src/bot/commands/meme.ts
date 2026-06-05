@@ -1,11 +1,11 @@
-import * as path from "node:path";
+import { join } from "node:path";
 import {
 	AttachmentBuilder,
 	type ChatInputCommandInteraction,
 	EmbedBuilder,
 	SlashCommandBuilder,
 } from "discord.js";
-import type { Command } from "../../interfaces";
+import type { Command } from "../types";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -24,9 +24,9 @@ const command: Command = {
 
 		switch (type) {
 			case "clown": {
-				const imagePath = path.resolve(
-					__dirname,
-					"../../../../assets/images/goanhehy-clown.png",
+				const imagePath = join(
+					import.meta.dir,
+					"../../assets/images/goanhehy-clown.png",
 				);
 				const file = new AttachmentBuilder(imagePath);
 				const embed = new EmbedBuilder()
@@ -45,4 +45,4 @@ const command: Command = {
 	},
 };
 
-export = command;
+export default command;

@@ -5,7 +5,7 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import { QueryType, useMainPlayer, useQueue } from "discord-player";
-import type { Command } from "../../interfaces";
+import type { Command } from "../types";
 
 const command: Command = {
 	data: new SlashCommandBuilder()
@@ -14,11 +14,13 @@ const command: Command = {
 		.addSubcommand((subcommand) =>
 			subcommand
 				.setName("play")
-				.setDescription("Play a song from YouTube or Spotify")
+				.setDescription(
+					"Play a song (Spotify search + YouTube/SoundCloud fallback)",
+				)
 				.addStringOption((option) =>
 					option
 						.setName("query")
-						.setDescription("Song name or URL")
+						.setDescription("Song name or URL (Spotify works best for names)")
 						.setRequired(true),
 				),
 		)
@@ -86,7 +88,8 @@ const command: Command = {
 
 					const result = await player.search(query, {
 						requestedBy: interaction.user,
-						searchEngine: QueryType.SPOTIFY_SEARCH,
+						searchEngine: QueryType.SPOTIFY_SEARCH, // Best for song name search (fixes "multo" not found)
+						fallbackSearchEngine: QueryType.AUTO, // Try other sources if Spotify fails
 					});
 
 					if (!result || !result.tracks.length) {
@@ -103,11 +106,11 @@ const command: Command = {
 									client: interaction.client,
 									requestedBy: interaction.user,
 								},
-								leaveOnEmptyCooldown: 60000,
-								leaveOnEndCooldown: 60000,
 								leaveOnEmpty: true,
+								leaveOnEmptyCooldown: 60000,
 								leaveOnEnd: true,
-								bufferingTimeout: 0,
+								leaveOnEndCooldown: 60000,
+								bufferingTimeout: 0, // 0 = no timeout, wait as long as needed (WSL2 / slow networks need this)
 								selfDeaf: true,
 							},
 						});
@@ -303,4 +306,4 @@ const command: Command = {
 	},
 };
 
-export = command;
+export default command;

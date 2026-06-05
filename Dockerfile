@@ -1,54 +1,31 @@
-FROM node:22 AS builder
+FROM oven/bun:1 AS deps
 
 WORKDIR /app
 
-# Install build dependencies for native modules
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package.json yarn.lock ./
+COPY package.json bun.lock ./
 
-RUN yarn install --frozen-lockfile
+RUN bun install --frozen-lockfile --production
 
-COPY ./src ./src
-COPY ./views ./views
-COPY ./tsconfig.build.json ./tsconfig.build.json
-COPY ./tsconfig.json ./tsconfig.json
-COPY ./nest-cli.json ./nest-cli.json
-
-RUN yarn build
-
-FROM node:22 AS node_modules
+FROM oven/bun:1-slim
 
 WORKDIR /app
 
-# Install build dependencies for native modules
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /app/package.json /app/yarn.lock ./
-
-RUN yarn install --frozen-lockfile --only=production
-
-FROM node:22-slim
-
-WORKDIR /app
-
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/views ./views
-COPY --from=node_modules /app/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json bun.lock ./
+COPY src ./src
+COPY public ./public
+COPY tsconfig.json ./
 
 EXPOSE 3000
 
-CMD ["node", "dist/main"]
-
+CMD ["bun", "run", "src/index.ts"]

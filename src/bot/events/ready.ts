@@ -1,8 +1,8 @@
-import { Logger } from "@nestjs/common";
 import { type Client, Events } from "discord.js";
-import type { BotEvent } from "../interfaces";
+import { createLogger } from "../../logger";
+import type { BotEvent } from "../types";
 
-const logger = new Logger("ReadyEvent");
+const logger = createLogger("ReadyEvent");
 
 const event: BotEvent<typeof Events.ClientReady> = {
 	name: Events.ClientReady,
@@ -14,4 +14,4 @@ const event: BotEvent<typeof Events.ClientReady> = {
 	},
 };
 
-export = event;
+export default event;

@@ -1,9 +1,9 @@
-import { Logger } from "@nestjs/common";
 import { Events, type GuildTextBasedChannel, type Message } from "discord.js";
 import { QueryType, useMainPlayer } from "discord-player";
-import type { BotEvent } from "../interfaces";
+import { createLogger } from "../../logger";
+import type { BotEvent } from "../types";
 
-const logger = new Logger("MessageEvent");
+const logger = createLogger("MessageEvent");
 const PREFIX = "!";
 
 const event: BotEvent<typeof Events.MessageCreate> = {
@@ -72,4 +72,4 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 	},
 };
 
-export = event;
+export default event;
