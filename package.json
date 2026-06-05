@@ -18,7 +18,7 @@
 		"lint": "biome check --write .",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "bun test",
-		"prepare": "husky"
+		"prepare": "husky || true"
 	},
 	"dependencies": {
 		"@discord-player/extractor": "^7.1.0",

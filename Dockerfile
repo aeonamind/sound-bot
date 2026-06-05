@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
 
 COPY package.json bun.lock ./
 
+ENV HUSKY=0
+
 RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:1-slim
