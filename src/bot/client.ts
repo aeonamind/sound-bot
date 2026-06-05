@@ -8,7 +8,7 @@ import {
 import { Client, type ClientOptions, Collection } from "discord.js";
 import { Player } from "discord-player";
 import { SpotifyExtractor } from "discord-player-spotify";
-import ffmpegPath from "ffmpeg-static";
+import { initFfmpeg } from "../ffmpeg";
 import { PlayDLExtractor } from "./extractors/play-dl";
 import type { Command } from "./types";
 
@@ -30,8 +30,9 @@ export class CustomClient extends Client {
 
 	constructor(options: ClientOptions) {
 		super(options);
+		const ffmpegPath = initFfmpeg();
 		this.player = new Player(this, {
-			ffmpegPath: ffmpegPath ?? undefined,
+			ffmpegPath,
 			skipFFmpeg: false,
 		});
 	}
