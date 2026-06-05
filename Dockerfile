@@ -19,11 +19,18 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     ffmpeg \
+    && curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+        -o /usr/local/bin/yt-dlp \
+    && chmod +x /usr/local/bin/yt-dlp \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV YT_DLP_PATH=/usr/local/bin/yt-dlp
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json bun.lock ./

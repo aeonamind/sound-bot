@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Readable } from "node:stream";
 import {
 	BaseExtractor,
@@ -11,7 +12,21 @@ import {
 	Util,
 } from "discord-player";
 import play from "play-dl";
-import youtubedl from "youtube-dl-exec";
+import youtubedlDefault, { create as createYoutubeDl } from "youtube-dl-exec";
+
+function resolveYoutubeDl() {
+	const candidates = [process.env.YT_DLP_PATH, "/usr/local/bin/yt-dlp"].filter(
+		(path): path is string => Boolean(path),
+	);
+
+	for (const path of candidates) {
+		if (existsSync(path)) return createYoutubeDl(path);
+	}
+
+	return youtubedlDefault;
+}
+
+const youtubedl = resolveYoutubeDl();
 
 type BridgeSource = {
 	identifier: string;
