@@ -9,6 +9,11 @@ import {
 import { glob } from "glob";
 import type { BotConfig } from "../config";
 import { createLogger } from "../logger";
+import {
+	isYoutubeBackedTrack,
+	isYoutubeStreamError,
+	trySoundCloudBridge,
+} from "../stream-fallback";
 import { CustomClient } from "./client";
 
 export class BotService {
@@ -212,7 +217,7 @@ export class BotService {
 			queue.metadata.channel?.send(`❌ | Error: ${error.message}`);
 		});
 
-		player.events.on("playerError", (queue, error) => {
+		player.events.on("playerError", async (queue, error, track) => {
 			if (
 				error.name === "AbortError" ||
 				error.message.includes("The operation was aborted") ||
@@ -224,21 +229,41 @@ export class BotService {
 				return;
 			}
 
+			const currentTrack = track ?? queue.currentTrack;
+			if (
+				currentTrack &&
+				isYoutubeStreamError(error) &&
+				isYoutubeBackedTrack(currentTrack)
+			) {
+				const bridged = await trySoundCloudBridge(queue.player, currentTrack);
+				if (bridged) {
+					this.logger.warn(
+						`YouTube failed for "${currentTrack.title}", retrying via SoundCloud`,
+					);
+					queue.metadata.channel?.send(
+						`⚠️ | YouTube unavailable, trying SoundCloud for **${currentTrack.title}**...`,
+					);
+					try {
+						await queue.node.play(currentTrack, { queue: false });
+						return;
+					} catch (retryError) {
+						this.logger.error("SoundCloud fallback failed:", retryError);
+					}
+				}
+			}
+
 			if (
 				error.message.includes("Could not extract stream for this track") ||
 				error.name === "NoResultError" ||
 				error.message.includes("No suitable source found")
 			) {
-				const trackTitle =
-					queue.currentTrack?.title ||
-					queue.tracks?.at(0)?.title ||
-					"this track";
+				const trackTitle = currentTrack?.title ?? "this track";
 				this.logger.warn(
 					`Bridge failed for "${trackTitle}". No audio source found from YouTube/SoundCloud.`,
 				);
 				queue.metadata.channel?.send(
 					`⏭️ | Could not find audio source for **${trackTitle}**. ` +
-						`Try a different song or YouTube link directly.`,
+						`Try a different song or paste a direct link.`,
 				);
 				return;
 			}

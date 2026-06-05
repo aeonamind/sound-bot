@@ -51,8 +51,6 @@ export class CustomClient extends Client {
 		await this.player.extractors.loadMulti(secondaryExtractors, {} as any);
 
 		console.log(`✅ Loaded ${this.player.extractors.size} extractors`);
-		console.log(
-			`🎬 YouTube: play-dl search + yt-dlp stream | 🎵 Spotify: bridge`,
-		);
+		console.log(`🎵 Spotify → YouTube (yt-dlp), fallback: SoundCloud`);
 	}
 }

@@ -31,6 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
 ENV YT_DLP_PATH=/usr/local/bin/yt-dlp
+ENV YT_DLP_COOKIES_FILE=/secrets/youtube-cookies.txt
+
+RUN mkdir -p /secrets
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json bun.lock ./
