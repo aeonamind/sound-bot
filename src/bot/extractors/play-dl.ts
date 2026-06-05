@@ -15,6 +15,7 @@ import {
 	getYtDlpStreamFlags,
 	logYtDlpConfig,
 	resolveYoutubeDl,
+	verifyYtDlpUrl,
 } from "../../yt-dlp";
 
 const youtubedl = resolveYoutubeDl();
@@ -176,6 +177,10 @@ export class PlayDLExtractor extends BaseExtractor {
 			throw new Error(`Cannot stream non-YouTube URL: ${url ?? "undefined"}`);
 		}
 
+		if (!(await verifyYtDlpUrl(url))) {
+			throw new Error(`YouTube stream unavailable for: ${url}`);
+		}
+
 		return this.createYtDlpStream(url);
 	}
 
@@ -214,6 +219,8 @@ export class PlayDLExtractor extends BaseExtractor {
 				{ requestedBy: track.requestedBy },
 				QueryType.YOUTUBE_SEARCH,
 			);
+
+			if (!(await verifyYtDlpUrl(video.url))) return null;
 
 			track.bridgedTrack = bridgedTrack;
 			track.bridgedExtractor = this;

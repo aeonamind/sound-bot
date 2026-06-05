@@ -8,17 +8,26 @@ const DEFAULT_COOKIE_PATHS = [
 ] as const;
 
 let resolvedCookiesFile: string | null | undefined;
+let youtubeDlInstance:
+	| ReturnType<typeof createYoutubeDl>
+	| typeof youtubedlDefault;
 
 export function resolveYoutubeDl() {
+	if (youtubeDlInstance) return youtubeDlInstance;
+
 	const candidates = [process.env.YT_DLP_PATH, "/usr/local/bin/yt-dlp"].filter(
 		(path): path is string => Boolean(path),
 	);
 
 	for (const path of candidates) {
-		if (existsSync(path)) return createYoutubeDl(path);
+		if (existsSync(path)) {
+			youtubeDlInstance = createYoutubeDl(path);
+			return youtubeDlInstance;
+		}
 	}
 
-	return youtubedlDefault;
+	youtubeDlInstance = youtubedlDefault;
+	return youtubeDlInstance;
 }
 
 export function resolveCookiesFile(): string | null {
@@ -55,6 +64,21 @@ export function getYtDlpStreamFlags(): Flags {
 	if (cookiesFile) flags.cookies = cookiesFile;
 
 	return flags;
+}
+
+export async function verifyYtDlpUrl(url: string): Promise<boolean> {
+	try {
+		await resolveYoutubeDl()(url, {
+			...getYtDlpStreamFlags(),
+			simulate: true,
+			skipDownload: true,
+		});
+		return true;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`yt-dlp preflight failed: ${message}`);
+		return false;
+	}
 }
 
 export function logYtDlpConfig(): void {
