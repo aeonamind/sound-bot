@@ -2,7 +2,10 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import type { Flags } from "youtube-dl-exec";
 import youtubedlDefault, { create as createYoutubeDl } from "youtube-dl-exec";
 
-type YtDlpFlags = Flags & { extractorArgs?: string };
+type YtDlpFlags = Flags & {
+	extractorArgs?: string;
+	fragmentRetries?: number;
+};
 
 const DEFAULT_COOKIE_PATHS = [
 	"/secrets/youtube-cookies.txt",
@@ -86,8 +89,8 @@ function buildExtractorArgs(): string {
 	}
 
 	const clients = resolveCookiesFile()
-		? "web_safari,tv,web"
-		: "android_vr,web_embedded,tv";
+		? "web_safari"
+		: "android_vr,web_embedded";
 	const parts = [`player-client=${clients}`];
 	const poToken = process.env.YT_DLP_PO_TOKEN?.trim();
 	if (poToken) parts.push(`po_token=web+${poToken}`);
@@ -97,11 +100,15 @@ function buildExtractorArgs(): string {
 
 export function getYtDlpStreamFlags(): YtDlpFlags {
 	const flags: YtDlpFlags = {
-		format: "ba/b",
+		// Prefer progressive HTTPS (format 18). Avoid m3u8/HLS — it stutters when piped.
+		format: "best[format_id=18]/best[ext=mp4][protocol=https]/ba/b",
 		output: "-",
 		noPart: true,
 		quiet: true,
 		noWarnings: true,
+		retries: 10,
+		fragmentRetries: 10,
+		skipUnavailableFragments: true,
 		extractorArgs: buildExtractorArgs(),
 		remoteComponent: "ejs:github",
 		jsRuntimes: YT_DLP_JS_RUNTIME,
@@ -141,21 +148,6 @@ export function loadYoutubeCookieHeader(): string | null {
 		return cookies.length > 0 ? cookies.join("; ") : null;
 	} catch {
 		return null;
-	}
-}
-
-export async function verifyYtDlpUrl(url: string): Promise<boolean> {
-	try {
-		await resolveYoutubeDl()(url, {
-			...getYtDlpStreamFlags(),
-			simulate: true,
-			skipDownload: true,
-		});
-		return true;
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`yt-dlp preflight failed: ${message}`);
-		return false;
 	}
 }
 

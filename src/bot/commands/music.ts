@@ -5,6 +5,7 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import { QueryType, useMainPlayer, useQueue } from "discord-player";
+import { defaultNodeOptions } from "../../player-config";
 import type { Command } from "../types";
 
 const command: Command = {
@@ -101,17 +102,12 @@ const command: Command = {
 					try {
 						const { track } = await player.play(voiceChannel, result, {
 							nodeOptions: {
+								...defaultNodeOptions,
 								metadata: {
 									channel: interaction.channel,
 									client: interaction.client,
 									requestedBy: interaction.user,
 								},
-								leaveOnEmpty: true,
-								leaveOnEmptyCooldown: 60000,
-								leaveOnEnd: true,
-								leaveOnEndCooldown: 60000,
-								bufferingTimeout: 0, // 0 = no timeout, wait as long as needed (WSL2 / slow networks need this)
-								selfDeaf: true,
 							},
 						});
 

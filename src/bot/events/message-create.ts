@@ -1,6 +1,7 @@
 import { Events, type GuildTextBasedChannel, type Message } from "discord.js";
 import { QueryType, useMainPlayer } from "discord-player";
 import { createLogger } from "../../logger";
+import { defaultNodeOptions } from "../../player-config";
 import type { BotEvent } from "../types";
 
 const logger = createLogger("MessageEvent");
@@ -50,16 +51,12 @@ const event: BotEvent<typeof Events.MessageCreate> = {
 
 				await player.play(voiceChannel, result, {
 					nodeOptions: {
+						...defaultNodeOptions,
 						metadata: {
 							channel: channel,
 							client: message.client,
 							requestedBy: message.author,
 						},
-						leaveOnEmptyCooldown: 60000,
-						leaveOnEndCooldown: 60000,
-						leaveOnEmpty: true,
-						leaveOnEnd: true,
-						selfDeaf: true,
 					},
 				});
 
