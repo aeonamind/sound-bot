@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import type { Flags } from "youtube-dl-exec";
 import youtubedlDefault, { create as createYoutubeDl } from "youtube-dl-exec";
 
@@ -8,8 +8,12 @@ const DEFAULT_COOKIE_PATHS = [
 	"/secrets/youtube-cookies.txt",
 	"/app/secrets/youtube-cookies.txt",
 ] as const;
+const WRITABLE_COOKIES_PATH = "/tmp/youtube-cookies.txt";
+const YT_DLP_CACHE_DIR = "/tmp/yt-dlp-cache";
+const YT_DLP_JS_RUNTIME = "bun:/usr/local/bin/bun";
 
 let resolvedCookiesFile: string | null | undefined;
+let writableCookiesFile: string | null | undefined;
 let youtubeDlInstance:
 	| ReturnType<typeof createYoutubeDl>
 	| typeof youtubedlDefault;
@@ -53,12 +57,38 @@ export function resolveCookiesFile(): string | null {
 	return null;
 }
 
+function resolveWritableCookiesFile(): string | null {
+	if (writableCookiesFile !== undefined) return writableCookiesFile;
+
+	const source = resolveCookiesFile();
+	if (!source) {
+		writableCookiesFile = null;
+		return null;
+	}
+
+	try {
+		copyFileSync(source, WRITABLE_COOKIES_PATH);
+		writableCookiesFile = WRITABLE_COOKIES_PATH;
+		return WRITABLE_COOKIES_PATH;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(
+			`yt-dlp: failed to copy cookies to writable path (${message}), using source file`,
+		);
+		writableCookiesFile = source;
+		return source;
+	}
+}
+
 function buildExtractorArgs(): string {
 	if (process.env.YT_DLP_EXTRACTOR_ARGS?.trim()) {
 		return process.env.YT_DLP_EXTRACTOR_ARGS.trim();
 	}
 
-	const parts = ["player-client=android_vr,web_embedded,tv"];
+	const clients = resolveCookiesFile()
+		? "web_safari,tv,web"
+		: "android_vr,web_embedded,tv";
+	const parts = [`player-client=${clients}`];
 	const poToken = process.env.YT_DLP_PO_TOKEN?.trim();
 	if (poToken) parts.push(`po_token=web+${poToken}`);
 
@@ -74,9 +104,11 @@ export function getYtDlpStreamFlags(): YtDlpFlags {
 		noWarnings: true,
 		extractorArgs: buildExtractorArgs(),
 		remoteComponent: "ejs:github",
+		jsRuntimes: YT_DLP_JS_RUNTIME,
+		cacheDir: YT_DLP_CACHE_DIR,
 	};
 
-	const cookiesFile = resolveCookiesFile();
+	const cookiesFile = resolveWritableCookiesFile();
 	if (cookiesFile) flags.cookies = cookiesFile;
 
 	return flags;
@@ -128,13 +160,20 @@ export async function verifyYtDlpUrl(url: string): Promise<boolean> {
 }
 
 export function logYtDlpConfig(): void {
+	mkdirSync(YT_DLP_CACHE_DIR, { recursive: true });
+
 	const cookiesFile = resolveCookiesFile();
+	const writableCookies = resolveWritableCookiesFile();
 	const extractorArgs = buildExtractorArgs();
 
 	console.log(`yt-dlp extractor args: ${extractorArgs}`);
+	console.log(`yt-dlp js runtime: ${YT_DLP_JS_RUNTIME}`);
 
 	if (cookiesFile) {
 		console.log(`yt-dlp cookies: ${cookiesFile}`);
+		if (writableCookies && writableCookies !== cookiesFile) {
+			console.log(`yt-dlp cookies (writable): ${writableCookies}`);
+		}
 		return;
 	}
 
