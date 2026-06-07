@@ -13,6 +13,7 @@ import {
 import play from "play-dl";
 import {
 	getYtDlpStreamFlags,
+	loadYoutubeCookieHeader,
 	logYtDlpConfig,
 	resolveYoutubeDl,
 	verifyYtDlpUrl,
@@ -31,6 +32,12 @@ export class PlayDLExtractor extends BaseExtractor {
 	async activate(): Promise<void> {
 		this.protocols = ["ytsearch", "youtube"];
 		logYtDlpConfig();
+
+		const cookieHeader = loadYoutubeCookieHeader();
+		if (cookieHeader) {
+			await play.setToken({ youtube: { cookie: cookieHeader } });
+			console.log("[playdl-extractor] YouTube cookies loaded for play-dl");
+		}
 	}
 
 	async validate(
@@ -171,17 +178,39 @@ export class PlayDLExtractor extends BaseExtractor {
 		return stream;
 	}
 
+	private async createPlayDlStream(youtubeUrl: string): Promise<Readable> {
+		const result = await play.stream(youtubeUrl, {
+			discordPlayerCompatibility: true,
+		});
+		return result.stream;
+	}
+
+	private async resolveYoutubeStream(youtubeUrl: string): Promise<Readable> {
+		if (await verifyYtDlpUrl(youtubeUrl)) {
+			return this.createYtDlpStream(youtubeUrl);
+		}
+
+		console.warn(
+			`[playdl-extractor] yt-dlp preflight failed, trying play-dl stream: ${youtubeUrl}`,
+		);
+
+		try {
+			return await this.createPlayDlStream(youtubeUrl);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			throw new Error(
+				`YouTube stream unavailable for: ${youtubeUrl} (${message})`,
+			);
+		}
+	}
+
 	async stream(track: Track): Promise<ExtractorStreamable> {
 		const url = track.bridgedTrack?.url ?? track.url;
 		if (!url || play.yt_validate(url) !== "video") {
 			throw new Error(`Cannot stream non-YouTube URL: ${url ?? "undefined"}`);
 		}
 
-		if (!(await verifyYtDlpUrl(url))) {
-			throw new Error(`YouTube stream unavailable for: ${url}`);
-		}
-
-		return this.createYtDlpStream(url);
+		return this.resolveYoutubeStream(url);
 	}
 
 	async bridge(
@@ -220,12 +249,10 @@ export class PlayDLExtractor extends BaseExtractor {
 				QueryType.YOUTUBE_SEARCH,
 			);
 
-			if (!(await verifyYtDlpUrl(video.url))) return null;
-
 			track.bridgedTrack = bridgedTrack;
 			track.bridgedExtractor = this;
 
-			return this.createYtDlpStream(video.url);
+			return this.resolveYoutubeStream(video.url);
 		} catch {
 			return null;
 		}

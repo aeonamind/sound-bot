@@ -1,6 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { Flags } from "youtube-dl-exec";
 import youtubedlDefault, { create as createYoutubeDl } from "youtube-dl-exec";
+
+type YtDlpFlags = Flags & { extractorArgs?: string };
 
 const DEFAULT_COOKIE_PATHS = [
 	"/secrets/youtube-cookies.txt",
@@ -51,19 +53,63 @@ export function resolveCookiesFile(): string | null {
 	return null;
 }
 
-export function getYtDlpStreamFlags(): Flags {
-	const flags: Flags = {
+function buildExtractorArgs(): string {
+	if (process.env.YT_DLP_EXTRACTOR_ARGS?.trim()) {
+		return process.env.YT_DLP_EXTRACTOR_ARGS.trim();
+	}
+
+	const parts = ["player-client=android_vr,web_embedded,tv"];
+	const poToken = process.env.YT_DLP_PO_TOKEN?.trim();
+	if (poToken) parts.push(`po_token=web+${poToken}`);
+
+	return `youtube:${parts.join(";")}`;
+}
+
+export function getYtDlpStreamFlags(): YtDlpFlags {
+	const flags: YtDlpFlags = {
 		format: "ba/b",
 		output: "-",
 		noPart: true,
 		quiet: true,
 		noWarnings: true,
+		extractorArgs: buildExtractorArgs(),
+		remoteComponent: "ejs:github",
 	};
 
 	const cookiesFile = resolveCookiesFile();
 	if (cookiesFile) flags.cookies = cookiesFile;
 
 	return flags;
+}
+
+export function loadYoutubeCookieHeader(): string | null {
+	const cookiesFile = resolveCookiesFile();
+	if (!cookiesFile) return null;
+
+	try {
+		const cookies: string[] = [];
+
+		for (const line of readFileSync(cookiesFile, "utf8").split("\n")) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith("#")) continue;
+
+			const parts = trimmed.split("\t");
+			if (parts.length < 7) continue;
+
+			const domain = parts[0] ?? "";
+			if (!domain.includes("youtube.com") && !domain.includes("google.com")) {
+				continue;
+			}
+
+			const name = parts[5];
+			const value = parts[6];
+			if (name && value) cookies.push(`${name}=${value}`);
+		}
+
+		return cookies.length > 0 ? cookies.join("; ") : null;
+	} catch {
+		return null;
+	}
 }
 
 export async function verifyYtDlpUrl(url: string): Promise<boolean> {
@@ -83,6 +129,9 @@ export async function verifyYtDlpUrl(url: string): Promise<boolean> {
 
 export function logYtDlpConfig(): void {
 	const cookiesFile = resolveCookiesFile();
+	const extractorArgs = buildExtractorArgs();
+
+	console.log(`yt-dlp extractor args: ${extractorArgs}`);
 
 	if (cookiesFile) {
 		console.log(`yt-dlp cookies: ${cookiesFile}`);
@@ -95,6 +144,6 @@ export function logYtDlpConfig(): void {
 		process.env.YT_DLP_COOKIES_FILE ?? "/secrets/youtube-cookies.txt";
 
 	console.warn(
-		`yt-dlp: no cookies file found (expected at ${expectedPath}) — YouTube may block datacenter IPs`,
+		`yt-dlp: no cookies file found (expected at ${expectedPath}) — YouTube may block datacenter IPs; play-dl fallback will be used`,
 	);
 }
