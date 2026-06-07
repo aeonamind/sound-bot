@@ -1,4 +1,4 @@
-import type { Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import {
 	BaseExtractor,
 	type ExtractorInfo,
@@ -16,7 +16,6 @@ import {
 	loadYoutubeCookieHeader,
 	logYtDlpConfig,
 	resolveYoutubeDl,
-	verifyYtDlpUrl,
 } from "../../yt-dlp";
 
 const youtubedl = resolveYoutubeDl();
@@ -164,18 +163,32 @@ export class PlayDLExtractor extends BaseExtractor {
 
 	private createYtDlpStream(youtubeUrl: string): Readable {
 		const subprocess = youtubedl.exec(youtubeUrl, getYtDlpStreamFlags());
+		const output = new PassThrough({ highWaterMark: 1024 * 1024 * 4 });
 
-		const stream = subprocess.stdout as Readable;
+		subprocess.stdout?.pipe(output);
 
-		stream.on("error", () => {
+		subprocess.stderr?.on("data", (chunk: Buffer | string) => {
+			const message = chunk.toString();
+			if (message.includes("ERROR") || message.includes("warning")) {
+				console.warn(`[yt-dlp] ${message.trim()}`);
+			}
+		});
+
+		subprocess.on("close", (code) => {
+			if (code !== 0 && code !== null) {
+				console.warn(
+					`[yt-dlp] process exited with code ${code} for ${youtubeUrl}`,
+				);
+			}
+			if (!subprocess.killed) subprocess.kill("SIGKILL");
+			output.end();
+		});
+
+		output.on("error", () => {
 			if (!subprocess.killed) subprocess.kill("SIGKILL");
 		});
 
-		stream.on("close", () => {
-			if (!subprocess.killed) subprocess.kill("SIGKILL");
-		});
-
-		return stream;
+		return output;
 	}
 
 	private async createPlayDlStream(youtubeUrl: string): Promise<Readable> {
@@ -187,14 +200,6 @@ export class PlayDLExtractor extends BaseExtractor {
 	}
 
 	private async resolveYoutubeStream(youtubeUrl: string): Promise<Readable> {
-		if (await verifyYtDlpUrl(youtubeUrl)) {
-			return this.createYtDlpStream(youtubeUrl);
-		}
-
-		console.warn(
-			`[playdl-extractor] yt-dlp preflight failed, attempting stream anyway: ${youtubeUrl}`,
-		);
-
 		try {
 			return this.createYtDlpStream(youtubeUrl);
 		} catch {

@@ -165,6 +165,15 @@ export class BotService {
 		});
 
 		player.events.on("playerStart", (queue, track) => {
+			queue.filters.ffmpeg.setInputArgs([
+				"-probesize",
+				"32",
+				"-analyzeduration",
+				"0",
+				"-fflags",
+				"+genpts",
+			]);
+
 			this.logger.log(`Now playing: ${track.title}`);
 			queue.metadata.channel?.send(
 				`🎶 | Now playing: **${track.title}** by **${track.author}**\n` +
