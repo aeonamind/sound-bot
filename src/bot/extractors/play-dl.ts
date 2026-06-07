@@ -179,7 +179,8 @@ export class PlayDLExtractor extends BaseExtractor {
 	}
 
 	private async createPlayDlStream(youtubeUrl: string): Promise<Readable> {
-		const result = await play.stream(youtubeUrl, {
+		const info = await play.video_info(youtubeUrl);
+		const result = await play.stream_from_info(info, {
 			discordPlayerCompatibility: true,
 		});
 		return result.stream;
@@ -191,8 +192,16 @@ export class PlayDLExtractor extends BaseExtractor {
 		}
 
 		console.warn(
-			`[playdl-extractor] yt-dlp preflight failed, trying play-dl stream: ${youtubeUrl}`,
+			`[playdl-extractor] yt-dlp preflight failed, attempting stream anyway: ${youtubeUrl}`,
 		);
+
+		try {
+			return this.createYtDlpStream(youtubeUrl);
+		} catch {
+			console.warn(
+				`[playdl-extractor] yt-dlp stream failed, trying play-dl: ${youtubeUrl}`,
+			);
+		}
 
 		try {
 			return await this.createPlayDlStream(youtubeUrl);
