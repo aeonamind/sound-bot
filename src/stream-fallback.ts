@@ -6,7 +6,25 @@ export const SOUNDCLOUD_EXTRACTOR_ID =
 
 const fallbackUsed = new WeakMap<Track, string[]>();
 
+/** Expected when skip/stop tears down FFmpeg while yt-dlp is still piping. */
+export function isStreamTeardownError(error: Error): boolean {
+	const code = (error as NodeJS.ErrnoException).code;
+	const msg = error.message.toLowerCase();
+
+	return (
+		error.name === "AbortError" ||
+		code === "ABORT_ERR" ||
+		code === "EPIPE" ||
+		msg.includes("the operation was aborted") ||
+		msg.includes("broken pipe") ||
+		msg.includes("write epipe") ||
+		msg.includes("premature close") ||
+		msg.includes("stream destroyed")
+	);
+}
+
 export function isYoutubeStreamError(error: Error): boolean {
+	if (isStreamTeardownError(error)) return false;
 	const stderr = (error as { stderr?: string }).stderr ?? "";
 	const msg = `${error.message}\n${stderr}`.toLowerCase();
 

@@ -9,7 +9,9 @@ import {
 import { glob } from "glob";
 import type { BotConfig } from "../config";
 import { createLogger } from "../logger";
+import { ffmpegInputArgs } from "../player-config";
 import {
+	isStreamTeardownError,
 	isYoutubeBackedTrack,
 	isYoutubeStreamError,
 	trySoundCloudBridge,
@@ -165,15 +167,6 @@ export class BotService {
 		});
 
 		player.events.on("playerStart", (queue, track) => {
-			queue.filters.ffmpeg.setInputArgs([
-				"-probesize",
-				"32",
-				"-analyzeduration",
-				"0",
-				"-fflags",
-				"+genpts",
-			]);
-
 			this.logger.log(`Now playing: ${track.title}`);
 			queue.metadata.channel?.send(
 				`🎶 | Now playing: **${track.title}** by **${track.author}**\n` +
@@ -212,13 +205,9 @@ export class BotService {
 		});
 
 		player.events.on("error", (queue, error) => {
-			if (
-				error.name === "AbortError" ||
-				error.message.includes("The operation was aborted") ||
-				(error as NodeJS.ErrnoException).code === "ABORT_ERR"
-			) {
+			if (isStreamTeardownError(error)) {
 				this.logger.debug(
-					`[player] stream aborted (expected): ${error.message}`,
+					`[player] stream teardown (expected): ${error.message}`,
 				);
 				return;
 			}
@@ -227,13 +216,9 @@ export class BotService {
 		});
 
 		player.events.on("playerError", async (queue, error, track) => {
-			if (
-				error.name === "AbortError" ||
-				error.message.includes("The operation was aborted") ||
-				(error as NodeJS.ErrnoException).code === "ABORT_ERR"
-			) {
+			if (isStreamTeardownError(error)) {
 				this.logger.debug(
-					`[player] stream aborted (expected): ${error.message}`,
+					`[player] stream teardown (expected): ${error.message}`,
 				);
 				return;
 			}
@@ -283,7 +268,8 @@ export class BotService {
 
 		player.events.on(
 			"willPlayTrack" as any,
-			(_queue: any, track: any, _config: any, done: () => void) => {
+			(queue: any, track: any, _config: any, done: () => void) => {
+				queue.filters.ffmpeg.setInputArgs([...ffmpegInputArgs]);
 				this.logger.debug(
 					`[willPlayTrack] ${track?.title} | extractor: ${track?.extractor?.identifier}`,
 				);

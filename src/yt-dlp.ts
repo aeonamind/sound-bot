@@ -5,6 +5,7 @@ import youtubedlDefault, { create as createYoutubeDl } from "youtube-dl-exec";
 type YtDlpFlags = Flags & {
 	extractorArgs?: string;
 	fragmentRetries?: number;
+	httpChunkSize?: string;
 };
 
 const DEFAULT_COOKIE_PATHS = [
@@ -100,8 +101,9 @@ function buildExtractorArgs(): string {
 
 export function getYtDlpStreamFlags(): YtDlpFlags {
 	const flags: YtDlpFlags = {
-		// Prefer progressive HTTPS (format 18). Avoid m3u8/HLS — it stutters when piped.
-		format: "best[format_id=18]/best[ext=mp4][protocol=https]/ba/b",
+		// HTTPS progressive audio only — never fall back to DASH/HLS (stutters when piped).
+		format:
+			"ba[protocol=https]/bestaudio[protocol=https]/best[format_id=18]/best[ext=mp4][protocol=https]",
 		output: "-",
 		noPart: true,
 		quiet: true,
@@ -109,6 +111,7 @@ export function getYtDlpStreamFlags(): YtDlpFlags {
 		retries: 10,
 		fragmentRetries: 10,
 		skipUnavailableFragments: true,
+		httpChunkSize: "10M",
 		extractorArgs: buildExtractorArgs(),
 		remoteComponent: "ejs:github",
 		jsRuntimes: YT_DLP_JS_RUNTIME,

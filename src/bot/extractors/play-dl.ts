@@ -164,6 +164,25 @@ export class PlayDLExtractor extends BaseExtractor {
 	private createYtDlpStream(youtubeUrl: string): Readable {
 		const subprocess = youtubedl.exec(youtubeUrl, getYtDlpStreamFlags());
 		const output = new PassThrough({ highWaterMark: 1024 * 1024 * 4 });
+		let cleaned = false;
+
+		const cleanup = () => {
+			if (cleaned) return;
+			cleaned = true;
+			subprocess.stdout?.unpipe(output);
+			if (!subprocess.killed) subprocess.kill("SIGKILL");
+		};
+
+		const isBenignPipeError = (err: unknown): boolean => {
+			const code = (err as NodeJS.ErrnoException)?.code;
+			const message =
+				err instanceof Error ? err.message.toLowerCase() : String(err);
+			return (
+				code === "EPIPE" ||
+				message.includes("broken pipe") ||
+				message.includes("premature close")
+			);
+		};
 
 		subprocess.stdout?.pipe(output);
 
@@ -174,19 +193,38 @@ export class PlayDLExtractor extends BaseExtractor {
 			}
 		});
 
+		subprocess.on("error", (err) => {
+			if (!isBenignPipeError(err)) {
+				console.warn(`[yt-dlp] subprocess error: ${err.message}`);
+			}
+			cleanup();
+		});
+
+		subprocess.stdout?.on("error", (err) => {
+			if (!isBenignPipeError(err)) {
+				console.warn(`[yt-dlp] stdout error: ${err.message}`);
+			}
+			cleanup();
+		});
+
 		subprocess.on("close", (code) => {
-			if (code !== 0 && code !== null) {
+			if (code !== 0 && code !== null && !cleaned) {
 				console.warn(
 					`[yt-dlp] process exited with code ${code} for ${youtubeUrl}`,
 				);
 			}
-			if (!subprocess.killed) subprocess.kill("SIGKILL");
-			output.end();
+			cleanup();
+			if (!output.destroyed) output.end();
 		});
 
-		output.on("error", () => {
-			if (!subprocess.killed) subprocess.kill("SIGKILL");
+		output.on("error", (err) => {
+			if (!isBenignPipeError(err)) {
+				console.warn(`[yt-dlp] stream error: ${err.message}`);
+			}
+			cleanup();
 		});
+
+		output.on("close", cleanup);
 
 		return output;
 	}
