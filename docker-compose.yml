@@ -10,3 +10,19 @@ services:
       - '3000:3000'
     volumes:
       - ./secrets:/secrets:ro
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: soundbot
+      POSTGRES_PASSWORD: soundbot
+      POSTGRES_DB: soundbot
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
