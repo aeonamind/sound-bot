@@ -65,6 +65,8 @@ export interface RiotClientOptions {
 	accountRegion?: string;
 	/** Regional routing for match-v5. VN2 → sea. */
 	matchRegion?: string;
+	/** Platform prefix for bare numeric match IDs (VN2, KR, ...). */
+	platform?: string;
 	fetchFn?: typeof fetch;
 	limiter?: RateLimiter;
 	sleep?: (ms: number) => Promise<void>;
@@ -78,6 +80,7 @@ export class RiotClient {
 	private readonly accountRegion: string;
 	private readonly matchRegion: string;
 	private readonly maxRetries: number;
+	readonly platform: string;
 
 	constructor(private readonly options: RiotClientOptions) {
 		this.fetchFn = options.fetchFn ?? fetch;
@@ -86,6 +89,7 @@ export class RiotClient {
 		this.accountRegion = options.accountRegion ?? "asia";
 		this.matchRegion = options.matchRegion ?? "sea";
 		this.maxRetries = options.maxRetries ?? 3;
+		this.platform = (options.platform ?? "VN2").toUpperCase();
 	}
 
 	getAccountByRiotId(
@@ -146,6 +150,31 @@ export class RiotClient {
 			);
 		}
 	}
+}
+
+/**
+ * Accepts "1234567890", "VN2_1234567890", "vn2-1234567890" or a match URL such as
+ * leagueofgraphs.com/match/vn/1234567890. Returns "PLATFORM_ID" or null.
+ */
+export function normalizeMatchId(
+	input: string,
+	defaultPlatform: string,
+): string | null {
+	const s = input.trim();
+	if (/^\d{4,}$/.test(s)) return `${defaultPlatform.toUpperCase()}_${s}`;
+
+	const full = s.match(/^([A-Za-z]+\d*)[_-](\d{4,})$/);
+	if (full) return `${full[1].toUpperCase()}_${full[2]}`;
+
+	// URLs: site region codes (vn, euw...) differ from Riot platforms, so only
+	// trust an explicit "VN2_123" in the URL; otherwise use the default platform.
+	if (/\/match\//i.test(s)) {
+		const explicit = s.match(/([A-Za-z]+\d*)_(\d{4,})/);
+		if (explicit) return `${explicit[1].toUpperCase()}_${explicit[2]}`;
+		const id = s.match(/\/match\/(?:[A-Za-z]+\/)?(\d{4,})/i);
+		if (id) return `${defaultPlatform.toUpperCase()}_${id[1]}`;
+	}
+	return null;
 }
 
 /** Parses "Name#TAG" (whitespace tolerant). Returns null if malformed. */

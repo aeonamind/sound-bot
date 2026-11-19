@@ -6,9 +6,10 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import { buildReportMessage } from "../../lol/announce";
-import { parseRiotId } from "../../lol/riot-client";
-import { checkScorable } from "../../lol/scoring";
+import { normalizeMatchId, parseRiotId } from "../../lol/riot-client";
+import { checkScorable, scoreMatch } from "../../lol/scoring";
 import { getLolService, type LolService } from "../../lol/service";
+import type { Match } from "../../lol/types";
 import type { Command } from "../types";
 
 const PERIODS: Record<string, { label: string; days: number | null }> = {
@@ -53,6 +54,19 @@ const command: Command = {
 		)
 		.addSubcommand((s) =>
 			s
+				.setName("match")
+				.setDescription("Soi một trận cụ thể theo ID")
+				.addStringOption((o) =>
+					o
+						.setName("id")
+						.setDescription(
+							"ID trận: 1234567890, VN2_1234567890 hoặc link leagueofgraphs",
+						)
+						.setRequired(true),
+				),
+		)
+		.addSubcommand((s) =>
+			s
 				.setName("leaderboard")
 				.setDescription("Bảng xếp hạng gà")
 				.addStringOption((o) =>
@@ -93,6 +107,8 @@ const command: Command = {
 				return setChannel(interaction, lol);
 			case "last":
 				return last(interaction, lol);
+			case "match":
+				return matchById(interaction, lol);
 			case "leaderboard":
 				return leaderboard(interaction, lol);
 		}
@@ -190,10 +206,53 @@ async function last(interaction: ChatInputCommandInteraction, lol: LolService) {
 		);
 	}
 
+	return replyWithReport(
+		interaction,
+		lol,
+		match,
+		`Trận gần nhất của **${account.riotId}**`,
+		false,
+	);
+}
+
+async function matchById(
+	interaction: ChatInputCommandInteraction,
+	lol: LolService,
+) {
+	const raw = interaction.options.getString("id", true);
+	const matchId = normalizeMatchId(raw, lol.riot.platform);
+	if (!matchId) {
+		return interaction.reply({
+			content: `ID trận không hợp lệ: \`${raw}\`. Ví dụ: \`1234567890\`, \`${lol.riot.platform}_1234567890\`.`,
+			flags: MessageFlags.Ephemeral,
+		});
+	}
+
+	await interaction.deferReply();
+	const match = await lol.riot.getMatch(matchId);
+	if (!match) {
+		return interaction.editReply(
+			`Không tìm thấy trận \`${matchId}\`. Kiểm tra lại ID hoặc server (đang dùng ${lol.riot.platform}).`,
+		);
+	}
+	return replyWithReport(interaction, lol, match, `Trận \`${matchId}\``, true);
+}
+
+/**
+ * Scores a match for an on-demand command. Linked members of this server form
+ * the group; if none played (and `wholeLobbyIfNoMembers`), all 10 players are ranked.
+ */
+async function replyWithReport(
+	interaction: ChatInputCommandInteraction,
+	lol: LolService,
+	match: Match,
+	label: string,
+	wholeLobbyIfNoMembers: boolean,
+) {
 	const scorable = checkScorable(match);
 	if (!scorable.ok) {
 		return interaction.editReply(
-			`Trận gần nhất của **${account.riotId}** không chấm được (${scorable.reason}). Chỉ chấm trận Summoner's Rift dài trên 5 phút.`,
+			`${label} không chấm được (${scorable.reason}). Chỉ chấm trận Summoner's Rift dài trên 5 phút.`,
 		);
 	}
 
@@ -201,7 +260,15 @@ async function last(interaction: ChatInputCommandInteraction, lol: LolService) {
 	const members = (await lol.db.listAccounts(interaction.guildId!)).filter(
 		(a) => inMatch.has(a.puuid),
 	);
-	const { report, discordIdByPuuid } = lol.buildReport(match, members);
+
+	const { report, discordIdByPuuid } =
+		members.length === 0 && wholeLobbyIfNoMembers
+			? {
+					report: scoreMatch(match, match.metadata.participants),
+					discordIdByPuuid: new Map<string, string>(),
+				}
+			: lol.buildReport(match, members);
+
 	const message = buildReportMessage(report, discordIdByPuuid);
 	if (!message) {
 		return interaction.editReply("Không dựng được báo cáo cho trận này.");
@@ -209,6 +276,8 @@ async function last(interaction: ChatInputCommandInteraction, lol: LolService) {
 	return interaction.editReply({
 		embeds: message.embeds,
 		files: message.files,
+		// On-demand lookups shouldn't ping people.
+		allowedMentions: { users: [] },
 	});
 }
 
