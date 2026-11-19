@@ -8,6 +8,7 @@ import {
 import { QueryType } from "discord-player";
 import type { CustomClient } from "../bot/client";
 import { createLogger } from "../logger";
+import { describeDiff, statCallouts } from "./matchup";
 import { gaRoast, mvpLine } from "./roasts";
 import { type MatchReport, type PlayerScore, QUEUE_NAMES } from "./scoring";
 
@@ -52,20 +53,30 @@ export function buildReportMessage(
 	const queue = QUEUE_NAMES[report.queueId] ?? `Queue ${report.queueId}`;
 	const result = ga.win ? "✅ Thắng" : "❌ Thua";
 
+	const jabs = statCallouts(ga, ga.laneDiff).map((t) => `> 📉 ${t}`);
+
 	const embed = new EmbedBuilder()
 		.setColor(ga.win ? 0xf1c40f : 0xe74c3c)
 		.setTitle(solo ? "🐔 Phiếu Chấm Gà" : "🐔 Vua Gà Trận Đấu")
 		.setURL(matchUrl(report.matchId))
 		.setDescription(
 			`${who(ga, discordIdByPuuid)} — **${ga.championName}** \`${kda(ga)}\`\n` +
-				`> ${gaRoast(ga)}\n\n` +
-				`Điểm gà: **${ga.gaScore}**/100 · Hạng gà trong trận: **${ga.lobbyRank}/10**`,
+				`> ${gaRoast(ga)}\n` +
+				(jabs.length ? `${jabs.join("\n")}\n` : "") +
+				`\nĐiểm gà: **${ga.gaScore}**/100 · Hạng gà trong trận: **${ga.lobbyRank}/10**`,
 		)
 		.setImage(`attachment://${CLOWN_FILE}`)
 		.setFooter({
 			text: `${queue} · ${formatDuration(report.durationSec)} · ${result} · ID ${report.matchId}`,
 		})
 		.setTimestamp(report.endedAt);
+
+	if (ga.laneDiff) {
+		embed.addFields({
+			name: `📉 Chênh lệch với ${ga.laneDiff.opponentName} (${ga.laneDiff.opponentChamp})`,
+			value: describeDiff(ga.laneDiff),
+		});
+	}
 
 	if (!solo) {
 		const table = report.group

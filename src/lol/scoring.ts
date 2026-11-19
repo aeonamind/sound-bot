@@ -1,3 +1,4 @@
+import { computeLaneDiff, type LaneDiff } from "./matchup";
 import {
 	analyzeDeaths,
 	type DeathStats,
@@ -67,6 +68,11 @@ export interface PlayerStats {
 	visionPerMin: number;
 	deadSeconds: number;
 	deadRatio: number;
+	gold: number;
+	cs: number;
+	damage: number;
+	visionScore: number;
+	level: number;
 }
 
 export interface PlayerScore extends PlayerStats {
@@ -79,6 +85,8 @@ export interface PlayerScore extends PlayerStats {
 	opponentPuuid: string | null;
 	/** Only present when the match timeline was available. */
 	deathStats?: DeathStats;
+	/** Versus the lane opponent; absent when there is none. */
+	laneDiff?: LaneDiff;
 }
 
 export interface Title {
@@ -156,6 +164,11 @@ export function computeStats(match: Match): PlayerStats[] {
 			visionPerMin: p.visionScore / minutes,
 			deadSeconds: p.totalTimeSpentDead,
 			deadRatio: p.totalTimeSpentDead / Math.max(1, gameDuration),
+			gold: p.goldEarned,
+			cs: p.totalMinionsKilled + p.neutralMinionsKilled,
+			damage: p.totalDamageDealtToChampions,
+			visionScore: p.visionScore,
+			level: p.champLevel ?? 0,
 		};
 	});
 }
@@ -239,6 +252,7 @@ export function scoreMatch(
 			lobbyRank: 0,
 			opponentPuuid: opponent?.puuid ?? null,
 			deathStats: deathStats?.get(s.puuid),
+			laneDiff: opponent ? computeLaneDiff(s, opponent, timeline) : undefined,
 		};
 	});
 

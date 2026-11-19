@@ -39,6 +39,7 @@ export interface Participant {
 	totalTimeSpentDead: number;
 	totalDamageDealtToChampions: number;
 	goldEarned: number;
+	champLevel?: number;
 	gameEndedInEarlySurrender?: boolean;
 	challenges?: ParticipantChallenges;
 }
@@ -86,9 +87,21 @@ export type TimelineEvent =
 	| BuildingKillEvent
 	| { type: string; timestamp: number };
 
+export interface ParticipantFrame {
+	totalGold: number;
+	minionsKilled: number;
+	jungleMinionsKilled: number;
+	level: number;
+}
+
 export interface Timeline {
 	info: {
 		participants: { participantId: number; puuid: string }[];
-		frames: { timestamp: number; events: TimelineEvent[] }[];
+		frames: {
+			timestamp: number;
+			events: TimelineEvent[];
+			/** Keyed by participantId as a string ("1".."10"). */
+			participantFrames?: Record<string, ParticipantFrame>;
+		}[];
 	};
 }
