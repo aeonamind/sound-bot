@@ -58,7 +58,7 @@ export function buildReportMessage(
 		.setURL(matchUrl(report.matchId))
 		.setDescription(
 			`${who(ga, discordIdByPuuid)} — **${ga.championName}** \`${kda(ga)}\`\n` +
-				`> ${gaRoast(ga.name, ga.championName, ga.win)}\n\n` +
+				`> ${gaRoast(ga)}\n\n` +
 				`Điểm gà: **${ga.gaScore}**/100 · Hạng gà trong trận: **${ga.lobbyRank}/10**`,
 		)
 		.setImage(`attachment://${CLOWN_FILE}`)

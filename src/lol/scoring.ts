@@ -1,4 +1,10 @@
-import type { Match, Participant, TeamPosition } from "./types";
+import {
+	analyzeDeaths,
+	type DeathStats,
+	dauTrauScore,
+	describeDauTrau,
+} from "./timeline";
+import type { Match, Participant, TeamPosition, Timeline } from "./types";
 
 /** Summoner's Rift queues we judge: draft, ranked solo/flex, blind, swiftplay, quickplay, clash. */
 export const SCORABLE_QUEUES = new Set([400, 420, 430, 440, 480, 490, 700]);
@@ -71,6 +77,8 @@ export interface PlayerScore extends PlayerStats {
 	/** 1 = gà nhất among all 10 players. */
 	lobbyRank: number;
 	opponentPuuid: string | null;
+	/** Only present when the match timeline was available. */
+	deathStats?: DeathStats;
 }
 
 export interface Title {
@@ -209,9 +217,16 @@ const round1 = (v: number) => Math.round(v * 10) / 10;
 export function scoreMatch(
 	match: Match,
 	groupPuuids: Iterable<string>,
+	timeline?: Timeline | null,
 ): MatchReport {
 	const stats = computeStats(match);
 	const lobbyAverage = average(stats);
+	const deathStats = timeline
+		? analyzeDeaths(
+				timeline,
+				new Map(match.info.participants.map((p) => [p.puuid, p.teamId])),
+			)
+		: null;
 
 	const scored = stats.map((s) => {
 		const opponent = findOpponent(s, stats);
@@ -223,6 +238,7 @@ export function scoreMatch(
 			gaScore: round1(ga),
 			lobbyRank: 0,
 			opponentPuuid: opponent?.puuid ?? null,
+			deathStats: deathStats?.get(s.puuid),
 		};
 	});
 
@@ -310,6 +326,11 @@ export function awardTitles(group: PlayerScore[]): Title[] {
 		const m = Math.floor(sleeper.deadSeconds / 60);
 		const s = sleeper.deadSeconds % 60;
 		add(sleeper, "🪦", "Nằm sàn lâu nhất", `${m}p${s}s xem màn hình xám`);
+	}
+
+	const bull = pick(group, (p) => dauTrauScore(p.deathStats));
+	if (bull?.deathStats && dauTrauScore(bull.deathStats) >= 3) {
+		add(bull, "🐂", "Đầu Trâu", describeDauTrau(bull.deathStats));
 	}
 
 	return titles;

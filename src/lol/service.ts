@@ -5,7 +5,7 @@ import { buildReportMessage, playGaSound } from "./announce";
 import type { LinkedAccount, LolDb } from "./db";
 import type { RiotClient } from "./riot-client";
 import { checkScorable, type MatchReport, scoreMatch } from "./scoring";
-import type { Match } from "./types";
+import type { Match, Timeline } from "./types";
 
 const logger = createLogger("LolService");
 
@@ -115,8 +115,15 @@ export class LolService {
 			(a) => a.guildId,
 		);
 
+		const timeline =
+			byGuild.size > 0 ? await this.fetchTimeline(matchId) : null;
+
 		for (const [guildId, members] of byGuild) {
-			const { report, discordIdByPuuid } = this.buildReport(match, members);
+			const { report, discordIdByPuuid } = this.buildReport(
+				match,
+				members,
+				timeline,
+			);
 			const isNew = await this.db.saveReport(guildId, report, discordIdByPuuid);
 			if (!isNew) continue;
 			logger.log(
@@ -126,14 +133,31 @@ export class LolService {
 		}
 	}
 
+	/** Timeline is optional flavour (đầu trâu detection): never fail a report over it. */
+	async fetchTimeline(matchId: string): Promise<Timeline | null> {
+		try {
+			return await this.riot.getTimeline(matchId);
+		} catch (error) {
+			logger.warn(`Timeline unavailable for ${matchId}:`, error);
+			return null;
+		}
+	}
+
+	/** Scores a match; with no members, `wholeLobby` ranks all 10 players instead. */
 	buildReport(
 		match: Match,
 		members: LinkedAccount[],
+		timeline: Timeline | null,
+		wholeLobby = false,
 	): { report: MatchReport; discordIdByPuuid: Map<string, string> } {
 		const discordIdByPuuid = new Map(
 			members.map((m) => [m.puuid, m.discordId]),
 		);
-		const report = scoreMatch(match, discordIdByPuuid.keys());
+		const group =
+			members.length === 0 && wholeLobby
+				? match.metadata.participants
+				: discordIdByPuuid.keys();
+		const report = scoreMatch(match, group, timeline);
 		return { report, discordIdByPuuid };
 	}
 

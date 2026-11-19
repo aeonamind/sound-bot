@@ -1,5 +1,5 @@
 import { createLogger } from "../logger";
-import type { Match, RiotAccount } from "./types";
+import type { Match, RiotAccount, Timeline } from "./types";
 
 const logger = createLogger("RiotClient");
 
@@ -108,6 +108,13 @@ export class RiotClient {
 			`/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=${count}`,
 		);
 		return ids ?? [];
+	}
+
+	getTimeline(matchId: string): Promise<Timeline | null> {
+		return this.get<Timeline>(
+			this.matchRegion,
+			`/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
+		);
 	}
 
 	getMatch(matchId: string): Promise<Match | null> {
