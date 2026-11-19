@@ -12,6 +12,8 @@ export interface LolConfig {
 	databaseUrl?: string;
 	accountRegion: string;
 	matchRegion: string;
+	/** Platform prefix for bare numeric match IDs, e.g. VN2 → VN2_123. */
+	platform: string;
 	pollIntervalSec: number;
 }
 
@@ -27,6 +29,7 @@ export function getConfig(): BotConfig {
 			databaseUrl: process.env.DATABASE_URL || undefined,
 			accountRegion: process.env.LOL_ACCOUNT_REGION || "asia",
 			matchRegion: process.env.LOL_MATCH_REGION || "sea",
+			platform: (process.env.LOL_PLATFORM || "VN2").toUpperCase(),
 			pollIntervalSec: Math.max(
 				30,
 				Number(process.env.LOL_POLL_INTERVAL_SEC) || 90,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	normalizeMatchId,
 	parseRiotId,
 	RateLimiter,
 	RiotApiError,
@@ -73,6 +74,32 @@ describe("RateLimiter", () => {
 		await limiter.acquire();
 		await limiter.acquire();
 		expect(sleeps).toEqual([1000]);
+	});
+});
+
+describe("normalizeMatchId", () => {
+	it("accepts bare numbers, full IDs and URLs", () => {
+		expect(normalizeMatchId("1234567890", "VN2")).toBe("VN2_1234567890");
+		expect(normalizeMatchId(" vn2_1234567890 ", "VN2")).toBe("VN2_1234567890");
+		expect(normalizeMatchId("KR-7012345678", "VN2")).toBe("KR_7012345678");
+		expect(
+			normalizeMatchId(
+				"https://www.leagueofgraphs.com/match/vn/1234567890",
+				"VN2",
+			),
+		).toBe("VN2_1234567890");
+		expect(
+			normalizeMatchId(
+				"https://example.gg/match/EUW1_6543210987/overview",
+				"VN2",
+			),
+		).toBe("EUW1_6543210987");
+	});
+
+	it("rejects garbage and too-short numbers", () => {
+		expect(normalizeMatchId("abc", "VN2")).toBeNull();
+		expect(normalizeMatchId("123", "VN2")).toBeNull();
+		expect(normalizeMatchId("", "VN2")).toBeNull();
 	});
 });
 

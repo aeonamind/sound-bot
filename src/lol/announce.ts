@@ -36,7 +36,9 @@ function kda(p: PlayerScore): string {
 
 function matchUrl(matchId: string): string {
 	const [platform, id] = matchId.split("_");
-	return `https://www.leagueofgraphs.com/match/${platform.toLowerCase()}/${id}`;
+	// leagueofgraphs uses region codes without the trailing digit: VN2 → vn, EUW1 → euw.
+	const region = platform.replace(/\d+$/, "").toLowerCase();
+	return `https://www.leagueofgraphs.com/match/${region}/${id}`;
 }
 
 export function buildReportMessage(
@@ -61,7 +63,7 @@ export function buildReportMessage(
 		)
 		.setImage(`attachment://${CLOWN_FILE}`)
 		.setFooter({
-			text: `${queue} · ${formatDuration(report.durationSec)} · ${result}`,
+			text: `${queue} · ${formatDuration(report.durationSec)} · ${result} · ID ${report.matchId}`,
 		})
 		.setTimestamp(report.endedAt);
 

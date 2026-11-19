@@ -22,6 +22,7 @@ export async function initLol(config: LolConfig): Promise<LolService | null> {
 			apiKey: config.riotApiKey,
 			accountRegion: config.accountRegion,
 			matchRegion: config.matchRegion,
+			platform: config.platform,
 		});
 		const service = new LolService(db, riot, {
 			pollIntervalSec: config.pollIntervalSec,
