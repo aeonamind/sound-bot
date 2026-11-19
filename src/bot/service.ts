@@ -9,6 +9,7 @@ import {
 import { glob } from "glob";
 import type { BotConfig } from "../config";
 import { createLogger } from "../logger";
+import { initLol } from "../lol";
 import { ffmpegInputArgs } from "../player-config";
 import {
 	isStreamTeardownError,
@@ -45,9 +46,11 @@ export class BotService {
 			spotifyClientSecret: this.config.spotifyClientSecret,
 		});
 		this.registerPlayerEvents();
+		const lol = await initLol(this.config.lol);
 		await this.loadEvents();
 		await this.loadCommands();
 		await this.login();
+		lol?.start(this.client);
 	}
 
 	private async login(): Promise<void> {
