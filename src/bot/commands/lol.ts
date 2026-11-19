@@ -7,7 +7,7 @@ import {
 } from "discord.js";
 import { buildReportMessage } from "../../lol/announce";
 import { normalizeMatchId, parseRiotId } from "../../lol/riot-client";
-import { checkScorable, scoreMatch } from "../../lol/scoring";
+import { checkScorable } from "../../lol/scoring";
 import { getLolService, type LolService } from "../../lol/service";
 import type { Match } from "../../lol/types";
 import type { Command } from "../types";
@@ -261,13 +261,13 @@ async function replyWithReport(
 		(a) => inMatch.has(a.puuid),
 	);
 
-	const { report, discordIdByPuuid } =
-		members.length === 0 && wholeLobbyIfNoMembers
-			? {
-					report: scoreMatch(match, match.metadata.participants),
-					discordIdByPuuid: new Map<string, string>(),
-				}
-			: lol.buildReport(match, members);
+	const timeline = await lol.fetchTimeline(match.metadata.matchId);
+	const { report, discordIdByPuuid } = lol.buildReport(
+		match,
+		members,
+		timeline,
+		wholeLobbyIfNoMembers,
+	);
 
 	const message = buildReportMessage(report, discordIdByPuuid);
 	if (!message) {

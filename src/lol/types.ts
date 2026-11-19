@@ -39,6 +39,7 @@ export interface Participant {
 	totalTimeSpentDead: number;
 	totalDamageDealtToChampions: number;
 	goldEarned: number;
+	champLevel?: number;
 	gameEndedInEarlySurrender?: boolean;
 	challenges?: ParticipantChallenges;
 }
@@ -56,4 +57,51 @@ export interface MatchInfo {
 export interface Match {
 	metadata: { matchId: string; participants: string[] };
 	info: MatchInfo;
+}
+
+export interface MapPosition {
+	x: number;
+	y: number;
+}
+
+export interface ChampionKillEvent {
+	type: "CHAMPION_KILL";
+	timestamp: number; // ms
+	killerId: number; // 0 = executed by minions/turret
+	victimId: number;
+	assistingParticipantIds?: number[];
+	position: MapPosition;
+}
+
+export interface BuildingKillEvent {
+	type: "BUILDING_KILL";
+	timestamp: number;
+	buildingType: string; // TOWER_BUILDING | INHIBITOR_BUILDING
+	/** Team that OWNED the destroyed building. */
+	teamId: number;
+	position: MapPosition;
+}
+
+export type TimelineEvent =
+	| ChampionKillEvent
+	| BuildingKillEvent
+	| { type: string; timestamp: number };
+
+export interface ParticipantFrame {
+	totalGold: number;
+	minionsKilled: number;
+	jungleMinionsKilled: number;
+	level: number;
+}
+
+export interface Timeline {
+	info: {
+		participants: { participantId: number; puuid: string }[];
+		frames: {
+			timestamp: number;
+			events: TimelineEvent[];
+			/** Keyed by participantId as a string ("1".."10"). */
+			participantFrames?: Record<string, ParticipantFrame>;
+		}[];
+	};
 }
